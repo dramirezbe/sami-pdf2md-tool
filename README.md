@@ -34,7 +34,7 @@ Or from a local clone:
 uv tool install -e path/to/sami-pdf2md-tool
 ```
 
-> **Note:** The uv path installs CPU-only PyTorch and does not include `llama-server` (needed for table processing in complex PDFs). For full functionality and GPU acceleration, use `setup.sh`. If using uv, install llama.cpp separately: `brew install llama.cpp` (macOS/Linux) or download from [llama.cpp releases](https://github.com/ggml-org/llama.cpp/releases).
+> **Note:** The uv path installs CPU-only PyTorch. On first run, sami will auto-download `llama-server` from [llama.cpp releases](https://github.com/ggml-org/llama.cpp/releases) into `~/.sami/bin/` if it's not already installed. For GPU acceleration, use `setup.sh`.
 
 ## Usage
 

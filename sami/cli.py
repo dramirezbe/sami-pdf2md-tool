@@ -49,9 +49,130 @@ def ensure_app_home() -> Path:
     (app_home / "cache").mkdir(exist_ok=True)
     (app_home / "config").mkdir(exist_ok=True)
     (app_home / "logs").mkdir(exist_ok=True)
+    (app_home / "bin").mkdir(exist_ok=True)
     os.environ.setdefault("HF_HOME", str(app_home / "cache" / "huggingface"))
     os.environ.setdefault("TORCH_HOME", str(app_home / "cache" / "torch"))
+    _ensure_llama_server(app_home)
     return app_home
+
+
+# ---------------------------------------------------------------------------
+# llama-server auto-provisioning
+# ---------------------------------------------------------------------------
+
+_LLAMA_CPP_RELEASES_API = (
+    "https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=1"
+)
+
+
+def _platform_asset_suffix() -> str | None:
+    """Return the llama.cpp release asset suffix for this platform, or None."""
+    import platform as _platform
+    system = _platform.system()
+    machine = _platform.machine().lower()
+    if system == "Linux":
+        if machine in ("aarch64", "arm64"):
+            return "-ubuntu-arm64.tar.gz"
+        return "-ubuntu-x64.tar.gz"
+    if system == "Darwin":
+        return "-macos-arm64.tar.gz" if machine == "arm64" else "-macos-x64.tar.gz"
+    return None
+
+
+def _download_llama_server(bin_dir: Path) -> Path | None:
+    """Download the llama-server binary from GitHub releases into bin_dir."""
+    import json
+    import tarfile
+    import urllib.request
+
+    suffix = _platform_asset_suffix()
+    if suffix is None:
+        return None
+
+    log("llama-server not found, downloading from llama.cpp releases...")
+    try:
+        req = urllib.request.Request(
+            _LLAMA_CPP_RELEASES_API,
+            headers={"Accept": "application/vnd.github.v3+json"},
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            releases = json.loads(resp.read())
+    except Exception as exc:
+        log(f"  Failed to query llama.cpp releases: {exc}")
+        return None
+
+    if not releases:
+        return None
+
+    asset_url = None
+    for asset in releases[0].get("assets", []):
+        name = asset["name"]
+        if name.endswith(suffix) and not any(
+            x in name for x in ("cuda", "rocm", "sycl", "vulkan", "openvino", "snapdragon")
+        ):
+            asset_url = asset["browser_download_url"]
+            break
+
+    if not asset_url:
+        log(f"  No matching llama.cpp asset found for suffix {suffix}")
+        return None
+
+    log(f"  Downloading: {asset_url.split('/')[-1]}")
+    try:
+        tarball = bin_dir / "llama-server.tar.gz"
+        urllib.request.urlretrieve(asset_url, tarball)
+
+        with tarfile.open(tarball, "r:gz") as tf:
+            members_to_extract = []
+            for member in tf.getmembers():
+                basename = Path(member.name).name
+                if basename.startswith("llama-server") or basename.startswith("lib"):
+                    member.name = basename
+                    members_to_extract.append(member)
+            tf.extractall(path=bin_dir, members=members_to_extract)
+
+        tarball.unlink()
+
+        server_bin = bin_dir / "llama-server"
+        if server_bin.is_file():
+            server_bin.chmod(server_bin.stat().st_mode | 0o111)
+            log(f"  llama-server installed: {server_bin}")
+            return server_bin
+    except Exception as exc:
+        log(f"  Failed to download/extract llama-server: {exc}")
+
+    return None
+
+
+def _ensure_llama_server(app_home: Path) -> None:
+    """Make sure llama-server is available; download if needed."""
+    if os.environ.get("LLAMA_CPP_BINARY") and (
+        Path(os.environ["LLAMA_CPP_BINARY"]).is_file()
+        or shutil.which(os.environ["LLAMA_CPP_BINARY"])
+    ):
+        return
+
+    if shutil.which("llama-server"):
+        return
+
+    local_bin = app_home / "bin" / "llama-server"
+    if local_bin.is_file():
+        os.environ["LLAMA_CPP_BINARY"] = str(local_bin)
+        ld_path = str(app_home / "bin")
+        os.environ["LD_LIBRARY_PATH"] = (
+            f"{ld_path}:{os.environ['LD_LIBRARY_PATH']}"
+            if os.environ.get("LD_LIBRARY_PATH") else ld_path
+        )
+        return
+
+    result = _download_llama_server(app_home / "bin")
+    if result:
+        os.environ["LLAMA_CPP_BINARY"] = str(result)
+        ld_path = str(app_home / "bin")
+        os.environ["LD_LIBRARY_PATH"] = (
+            f"{ld_path}:{os.environ['LD_LIBRARY_PATH']}"
+            if os.environ.get("LD_LIBRARY_PATH") else ld_path
+        )
 
 # ---------------------------------------------------------------------------
 # Process cleanup: ensure llama-server and other child processes don't orphan
