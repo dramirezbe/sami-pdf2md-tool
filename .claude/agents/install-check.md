@@ -24,3 +24,12 @@ Verify that sami is correctly installed and all components are operational.
 - All components present: yes/no
 - Smoke test: pass/fail
 - Any warnings or missing components
+
+## Verified installs (2026-10-07)
+
+| Machine | OS | Method | uv pre-installed | Result |
+|---------|-----|--------|-----------------|--------|
+| ASUS Vivobook M3504YA | Arch Linux 7.2.5 | `curl \| bash` | yes | 102 packages, sami works |
+| nexus-rf | Ubuntu 24.04 7.1.5 | `curl \| bash` | no (auto-installed uv 0.12.23) | 102 packages, sami works |
+
+Both machines: llama-server auto-provisioned to `~/.sami/bin/`, OCR models downloaded on first conversion.

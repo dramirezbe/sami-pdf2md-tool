@@ -71,6 +71,32 @@ Override location with `SAMI_HOME` env var.
 - `PyYAML>=6.0`
 - Python `>=3.11,<3.14` (Pillow compatibility)
 
+## Verified Test Results (2026-10-07)
+
+### Machine 1: ASUS Vivobook M3504YA (local)
+- **OS**: Arch Linux, kernel 7.2.5-3-omarchy
+- **CPU**: 8 cores (7 threads used)
+- **Install**: `curl | bash` → 102 packages, ~2s resolve
+- **llama-server**: auto-downloaded `llama-b11476-bin-ubuntu-x64.tar.gz` to `~/.sami/bin/`
+- **test_document.pdf**: 5 pages, 5 figures, 3.4 KB md, 2.3s (0.5s/page)
+- **radio_env_5pages.pdf**: 5 pages, 3 figures, 25.9 KB md, 44.9s (9.0s/page) — includes 41s table OCR via llama-server
+- **Summary**: 2 converted, 0 failed, 10 pages, 65.5s total
+
+### Machine 2: nexus-rf (remote, clean install)
+- **OS**: Ubuntu 24.04, kernel 7.1.5-76070105-generic
+- **CPU**: 4 cores (3 threads used)
+- **Install**: `curl | bash` on clean machine (no uv, no sami, no ~/.sami) → installed uv 0.12.23 + 102 packages
+- **llama-server**: auto-downloaded on first `sami --help`
+- **test_document.pdf**: 5 pages, 5 figures, 3.4 KB md, 59.1s (11.8s/page) — slower due to first-run model downloads
+- **Summary**: 1 converted, 0 failed, 5 pages, 73.9s total
+
+### Test PDFs
+
+| File | Pages | Figures | Markdown | Notes |
+|------|-------|---------|----------|-------|
+| `test_document.pdf` | 5 | 5 | 3.4 KB | Text + tables + figures, no OCR needed |
+| `radio_env_5pages.pdf` | 5 | 3 | 25.9 KB | Complex tables trigger llama-server OCR |
+
 ## Dev Notes
 
 - `llama-server` is auto-provisioned into `~/.sami/bin/` if not found on PATH
