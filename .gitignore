@@ -10,9 +10,11 @@ build/
 .micromamba/
 .venv/
 
-# Test outputs
+# Test outputs (conversion results land beside the PDFs)
 test-pdfs/output/
 test-pdfs/.gen_images/
+test-pdfs/test_document/
+test-pdfs/radio_env_5pages/
 
 # OS
 .DS_Store

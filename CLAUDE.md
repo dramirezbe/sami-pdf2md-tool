@@ -1,38 +1,79 @@
 # sami — Smart Automated Markdown Interpreter
 
-Standalone PDF-to-Markdown converter using Marker. Opensource tool.
+Standalone PDF-to-Markdown converter using Marker. Opensource tool, local, keyless, no API needed.
 
-## Environment
+## Project Structure
 
-- Package name: `sami-pdf2md-tool`
-- CLI command: `sami`
-- Python package: `sami/`
-- App home: `~/.sami/` (config, cache, logs)
-- Core dep: `marker-pdf==2.0.0` (local, keyless, no API needed)
+- `sami/cli.py` — main converter (entry point: `main()`)
+- `sami/__init__.py` — package version
+- `pyproject.toml` — packaging, entry point `sami = "sami.cli:main"`
+- `setup.sh` — full installer (micromamba, CUDA/CPU detection, shell config)
+- `install.sh` — one-line installer (`curl | bash`)
+- `cpu_monitor.py` — dev-only CPU telemetry helper
+- `test-pdfs/` — test PDFs and generator script
 
 ## Install
 
 ```bash
-# Recommended (handles CUDA/CPU):
-bash setup.sh install
+# One-line (end user, no clone needed):
+curl -fsSL https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.sh | bash
 
-# Alternative (CPU-only, quick):
-uv tool install -e .
+# From clone (dev):
+uv tool install --python 3.12 -e .
+
+# With GPU support:
+bash setup.sh install
 ```
 
 ## Usage
 
-```
-sami paper.pdf                     # -> paper/paper.md + figures
-sami paper.pdf -o out/             # -> out/paper.md + figures
-sami a.pdf b.pdf                   # batch convert
-sami paper.pdf --mode fast         # faster, lower quality
-sami paper.pdf --no-strip-refs     # keep the references section
-sami paper.pdf --flat              # no subfolder, output beside the PDF
-sami paper.pdf -q                  # quiet mode
+```bash
+sami paper.pdf                        # -> paper/paper.md + figures
+sami paper.pdf -o out/                # custom output dir
+sami a.pdf b.pdf                      # batch convert
+sami paper.pdf --mode fast            # RF-DETR layout, faster
+sami paper.pdf --mode balanced        # VLM layout, more accurate
+sami paper.pdf --no-strip-refs        # keep references section
+sami paper.pdf --flat                 # no subfolder per PDF
+sami paper.pdf -q                     # quiet mode
 ```
 
-## Origin
+## Conversion Modes
 
-Extracted and decoupled from papersmith-ai's paper-ingestion skill (2026-10-07).
-Original code: `~/papersmith-ai/skills/paper-ingestion/scripts/extract_pdf.py`
+| Mode | Layout Engine | Speed | Quality |
+|------|--------------|-------|---------|
+| auto (default) | Marker picks by device | varies | varies |
+| `--mode fast` | RF-DETR | fast | good |
+| `--mode balanced` | VLM | slower | better |
+
+## Exit Codes
+
+- 0: success
+- 1: at least one PDF failed
+- 2: usage error
+
+## App Home (`~/.sami/`)
+
+Auto-created on first run:
+- `bin/llama-server` — auto-downloaded from llama.cpp releases
+- `config/defaults.yaml` — user default CLI flags
+- `cache/huggingface/` — surya-ocr models
+- `cache/torch/` — torch hub cache
+- `logs/`
+
+Override location with `SAMI_HOME` env var.
+
+## Key Dependencies
+
+- `marker-pdf==2.0.0` — PDF conversion engine
+- `surya-ocr` — OCR backend (uses llama-server for table processing)
+- `psutil>=5.9` — CPU detection, process management
+- `PyYAML>=6.0`
+- Python `>=3.11,<3.14` (Pillow compatibility)
+
+## Dev Notes
+
+- `llama-server` is auto-provisioned into `~/.sami/bin/` if not found on PATH
+- `LLAMA_CPP_BINARY` env var overrides the llama-server path
+- `HF_HOME` and `TORCH_HOME` are redirected to `~/.sami/cache/`
+- Process cleanup kills orphaned llama-server processes on exit

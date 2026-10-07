@@ -65,6 +65,14 @@ sami paper.pdf --flat              # no subfolder, output beside the PDF
 sami paper.pdf -q                  # quiet mode
 ```
 
+## Conversion Modes
+
+| Mode | Flag | Layout Engine | Best for |
+|------|------|--------------|----------|
+| auto | *(default)* | Marker picks by device | General use |
+| fast | `--mode fast` | RF-DETR | Speed over quality |
+| balanced | `--mode balanced` | VLM | Quality over speed |
+
 ## Exit codes
 
 | Code | Meaning |
