@@ -8,33 +8,50 @@ For each PDF, sami creates a folder containing:
 
 Powered by [Marker](https://github.com/VikParuchuri/marker).
 
-## Install
-
-### Recommended: setup.sh (handles CUDA/CPU automatically)
+## Quick Install
 
 ```bash
-git clone https://github.com/UN-GCPDS/sami-pdf2md-tool.git
+curl -fsSL https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.sh | bash
+```
+
+This installs `uv` (if missing) and `sami` globally. On first run, `llama-server` and OCR models are downloaded automatically into `~/.sami/`.
+
+### Other install methods
+
+<details>
+<summary>uv (manual)</summary>
+
+```bash
+uv tool install --python 3.12 git+https://github.com/dramirezbe/sami-pdf2md-tool.git
+```
+
+</details>
+
+<details>
+<summary>setup.sh (handles CUDA/GPU acceleration)</summary>
+
+```bash
+git clone https://github.com/dramirezbe/sami-pdf2md-tool.git
 cd sami-pdf2md-tool
 bash setup.sh install            # auto-detects GPU
 bash setup.sh install --cpu      # force CPU
 bash setup.sh install --cuda     # force CUDA
 ```
 
-This creates `~/.sami/` for config and model cache, provisions a micromamba environment with the correct PyTorch build, and adds `sami` to your PATH.
+This provisions a micromamba environment with the correct PyTorch build (CPU or CUDA) and adds `sami` to your PATH.
 
-### Alternative: uv (CPU-only, quick)
+</details>
 
-```bash
-uv tool install git+https://github.com/UN-GCPDS/sami-pdf2md-tool.git
-```
-
-Or from a local clone:
+<details>
+<summary>From local clone</summary>
 
 ```bash
-uv tool install -e path/to/sami-pdf2md-tool
+git clone https://github.com/dramirezbe/sami-pdf2md-tool.git
+cd sami-pdf2md-tool
+uv tool install --python 3.12 -e .
 ```
 
-> **Note:** The uv path installs CPU-only PyTorch. On first run, sami will auto-download `llama-server` from [llama.cpp releases](https://github.com/ggml-org/llama.cpp/releases) into `~/.sami/bin/` if it's not already installed. For GPU acceleration, use `setup.sh`.
+</details>
 
 ## Usage
 
@@ -62,7 +79,8 @@ sami creates `~/.sami/` on first run:
 
 ```
 ~/.sami/
-  config/defaults.yaml       # default CLI flags
+  bin/llama-server            # auto-downloaded llama.cpp server
+  config/defaults.yaml        # default CLI flags
   cache/huggingface/          # downloaded models (surya-ocr, etc.)
   cache/torch/                # torch hub cache
   logs/
@@ -71,6 +89,13 @@ sami creates `~/.sami/` on first run:
 Override with `SAMI_HOME` environment variable.
 
 ## Uninstall
+
+```bash
+uv tool uninstall sami-pdf2md-tool
+rm -rf ~/.sami
+```
+
+Or if installed via setup.sh:
 
 ```bash
 bash setup.sh uninstall
