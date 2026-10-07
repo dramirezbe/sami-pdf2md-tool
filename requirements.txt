@@ -1,0 +1,3 @@
+marker-pdf==2.0.0
+psutil>=5.9
+PyYAML>=6.0

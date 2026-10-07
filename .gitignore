@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Environment
+.micromamba/
+.venv/
+
+# Test outputs
+test-pdfs/output/
+test-pdfs/.gen_images/
+
+# OS
+.DS_Store
