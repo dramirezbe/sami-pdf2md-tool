@@ -18,10 +18,13 @@ Standalone PDF-to-Markdown converter using Marker. Opensource tool, local, keyle
 # One-line (end user, no clone needed):
 curl -fsSL https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.sh | bash
 
+# Update to latest version:
+curl -fsSL https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.sh | bash -s update
+
 # From clone (dev):
 uv tool install --python 3.12 -e .
 
-# With GPU support:
+# With GPU support (micromamba path):
 bash setup.sh install
 ```
 
@@ -45,6 +48,24 @@ sami paper.pdf -q                     # quiet mode
 | auto (default) | Marker picks by device | varies | varies |
 | `--mode fast` | RF-DETR | fast | good |
 | `--mode balanced` | VLM | slower | better |
+
+## GPU Support
+
+sami auto-detects GPU VRAM and selects the best mode:
+- **≥ 8 GB VRAM**: uses VLM layout (balanced mode) via Docker + NVIDIA Container Toolkit
+- **< 8 GB VRAM**: auto-falls back to RF-DETR layout (fast mode), no Docker needed
+- **No GPU**: uses RF-DETR layout (fast mode)
+
+VLM mode requires Docker with the NVIDIA Container Toolkit. The installer (`install.sh` and `setup.sh`) auto-installs it when GPU + Docker are detected.
+
+Manual NVIDIA Container Toolkit setup (if installer can't sudo):
+```bash
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
+sudo nvidia-ctk runtime configure --runtime=docker
+sudo systemctl restart docker
+```
 
 ## Exit Codes
 

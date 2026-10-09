@@ -36,6 +36,7 @@ import signal
 os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
 
 VALID_MODES = ("fast", "balanced")
+MIN_VRAM_GB_FOR_VLM = 8
 
 
 # ---------------------------------------------------------------------------
@@ -569,6 +570,29 @@ def _make_verbose_converter_cls():
     return VerboseConverter
 
 
+def _gpu_vram_gb() -> float | None:
+    """Return total VRAM in GiB for the default CUDA device, or None."""
+    try:
+        import torch
+        if torch.cuda.is_available():
+            return torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
+    except Exception:
+        pass
+    return None
+
+
+def _resolve_mode(mode: str | None) -> str | None:
+    """Auto-select fast mode when GPU VRAM is too small for VLM."""
+    if mode is not None:
+        return mode
+    vram = _gpu_vram_gb()
+    if vram is not None and vram < MIN_VRAM_GB_FOR_VLM:
+        log(f"GPU VRAM: {vram:.1f} GB (< {MIN_VRAM_GB_FOR_VLM} GB minimum for VLM)")
+        log("Auto-selecting --mode fast (RF-DETR layout)")
+        return "fast"
+    return None
+
+
 def build_converter(mode: str | None):
     """Construct a Marker PDF->Markdown converter with verbose logging."""
     try:
@@ -584,6 +608,8 @@ def build_converter(mode: str | None):
 
     import torch
     torch.set_num_threads(CPU_CFG["torch_threads"])
+
+    mode = _resolve_mode(mode)
 
     cli: dict = {
         "output_format": "markdown",

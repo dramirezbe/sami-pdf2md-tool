@@ -121,6 +121,90 @@ bootstrap_micromamba() {
 }
 
 # ---------------------------------------------------------------------------
+# GPU Docker support (NVIDIA Container Toolkit)
+# ---------------------------------------------------------------------------
+
+setup_gpu_docker() {
+    # Marker's balanced/VLM mode runs inference via Docker with --runtime nvidia.
+    # This function installs the NVIDIA Container Toolkit so that works.
+
+    if ! command -v nvidia-smi &>/dev/null || ! nvidia-smi -L &>/dev/null; then
+        return 0
+    fi
+
+    if ! command -v docker &>/dev/null; then
+        info "Docker not found — GPU Docker support skipped."
+        info "  Install Docker to use --mode balanced (VLM layout)."
+        return 0
+    fi
+
+    if docker info 2>/dev/null | grep -q "nvidia"; then
+        info "NVIDIA Docker runtime already configured."
+        return 0
+    fi
+
+    info "Setting up NVIDIA Container Toolkit for GPU Docker support..."
+
+    if [[ "$(uname -s)" != "Linux" ]]; then
+        info "  NVIDIA Container Toolkit is Linux-only. Skipping."
+        return 0
+    fi
+
+    if ! command -v sudo &>/dev/null; then
+        info "  sudo not available. Install nvidia-container-toolkit manually:"
+        info "    https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html"
+        return 0
+    fi
+
+    # GPG keyring
+    if [[ ! -f /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg ]]; then
+        info "  Adding NVIDIA Container Toolkit GPG key..."
+        curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
+            | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg 2>/dev/null || {
+            info "  Failed to add GPG key. GPU Docker setup skipped."
+            return 0
+        }
+    fi
+
+    # Apt repository
+    if [[ ! -f /etc/apt/sources.list.d/nvidia-container-toolkit.list ]]; then
+        info "  Adding NVIDIA Container Toolkit apt repository..."
+        curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
+            | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
+            | sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list > /dev/null || {
+            info "  Failed to add apt repository. GPU Docker setup skipped."
+            return 0
+        }
+    fi
+
+    # Install
+    info "  Installing nvidia-container-toolkit..."
+    sudo apt-get update -qq -o Dir::Etc::sourcelist="sources.list.d/nvidia-container-toolkit.list" \
+        -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0" 2>/dev/null || true
+    sudo apt-get install -y -qq nvidia-container-toolkit || {
+        info "  Failed to install nvidia-container-toolkit. GPU Docker setup skipped."
+        info "  sami will still work with --mode fast."
+        return 0
+    }
+
+    # Configure Docker runtime
+    info "  Configuring Docker to use NVIDIA runtime..."
+    sudo nvidia-ctk runtime configure --runtime=docker > /dev/null 2>&1 || {
+        info "  Failed to configure Docker runtime. GPU Docker setup skipped."
+        return 0
+    }
+
+    # Restart Docker
+    info "  Restarting Docker..."
+    sudo systemctl restart docker 2>/dev/null || sudo service docker restart 2>/dev/null || {
+        info "  Could not restart Docker. Restart it manually: sudo systemctl restart docker"
+        return 0
+    }
+
+    info "  NVIDIA Container Toolkit installed and configured."
+}
+
+# ---------------------------------------------------------------------------
 # Install
 # ---------------------------------------------------------------------------
 
@@ -259,6 +343,11 @@ SHELL
         fi
     fi
 
+    # 8. GPU Docker support (for balanced/VLM mode)
+    if $use_cuda; then
+        setup_gpu_docker
+    fi
+
     echo ""
     info "Installation complete!"
     info "  App home:  $APP_HOME"
@@ -266,6 +355,11 @@ SHELL
     info "  Command:   sami --help"
     if $use_cuda; then
         info "  PyTorch:   CUDA (GPU-accelerated)"
+        if docker info 2>/dev/null | grep -q "nvidia"; then
+            info "  Docker:    NVIDIA runtime configured (--mode balanced ready)"
+        else
+            info "  Docker:    NVIDIA runtime not configured (use --mode fast, or install Docker + nvidia-container-toolkit)"
+        fi
     else
         info "  PyTorch:   CPU"
     fi
