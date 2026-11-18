@@ -10,8 +10,10 @@ build/
 .micromamba/
 .venv/
 
-# Local agent registry and cache
+# Local agent registry, cache and vector databases
 /.atl/
+/.lancedb/
+/lancedb/
 
 # Test outputs (conversion results land beside the PDFs)
 test-pdfs/output/
