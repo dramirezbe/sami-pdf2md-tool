@@ -1,12 +1,12 @@
-# Código de contexto extraído de PDF2MD_caste.ipynb.
-# Conserva el orden y la lógica de las cuatro celdas de código originales.
-# Las órdenes de instalación de Jupyter se conservan como comentarios.
-# Incluye conversión, ejecución por lotes y auditoría; no se adapta su ejecución.
+# Context code extracted from PDF2MD_caste.ipynb.
+# Preserves the order and logic of the four original code cells.
+# Jupyter installation commands are retained as comments.
+# Includes conversion, batch execution, and auditing; execution is not adapted.
 # ============================================================================
-# Celda original 1: Dependencias, configuración, extracción PDF, control de calidad y entrada CLI
+# Original cell 1: Dependencies, configuration, PDF extraction, quality checks, and CLI entry point
 # ============================================================================
 
-# Instalar dependencias necesarias antes de ejecutar
+# Install the required dependencies before running
 # !pip install -q PyMuPDF pdfplumber pyyaml pytesseract
 # !apt-get install -y -qq tesseract-ocr
 
@@ -25,16 +25,16 @@ import pymupdf
 # Keep all other pdfminer diagnostics visible.
 import logging
 
-# Filtra únicamente el aviso conocido de FontBBox de pdfminer.
+# Filters only the known pdfminer FontBBox warning.
 class _FontBBoxWarningFilter(logging.Filter):
-    # Decide si un registro se conserva según el logger y el mensaje del aviso.
+    # Retains records according to the logger and warning message.
     def filter(self, record):
         return not (
             record.name == "pdfminer.pdffont"
             and "Could not get FontBBox" in record.getMessage()
         )
 
-# Configura el filtro del logger sin duplicarlo al reevaluar la celda.
+# Configures the logger filter without duplicates when reevaluating the cell.
 _pdfminer_font_logger = logging.getLogger("pdfminer.pdffont")
 # Re-running this notebook cell must not accumulate duplicate filters.
 for _filter in list(_pdfminer_font_logger.filters):
@@ -46,7 +46,7 @@ import pdfplumber
 import yaml
 
 @dataclass
-# Agrupa las opciones de calidad, OCR, imágenes, tablas y control de cobertura.
+# Groups quality, OCR, image, table, and coverage-check options.
 class Options:
     quality: str = 'balanced'
     ocr: bool | None = None
@@ -57,7 +57,7 @@ class Options:
     overwrite: bool = False
     qc_threshold: float = 0.88
 
-    # Normaliza alias, valida opciones y completa valores según el nivel de calidad.
+    # Normalizes aliases, validates options, and fills defaults by quality tier.
     def resolve(self):
         self.quality = {'1':'fast','2':'balanced','3':'high','draft':'fast','standard':'balanced','fidelity':'high'}.get(self.quality,self.quality)
         if self.quality not in ('fast','balanced','high'): raise ValueError('invalid quality')
@@ -68,20 +68,20 @@ class Options:
         if self.markers is None: self.markers = self.quality != 'fast'
         return self
 
-# Une palabras cortadas por salto de línea y normaliza los espacios del texto.
+# Joins words split across line breaks and normalizes whitespace.
 def norm(text):
     return re.sub(r'\s+', ' ', re.sub(r'(?<=\w)-\s*\n\s*(?=\w)', '', text)).strip()
 
-# Extrae palabras en minúsculas, conservando guiones y apóstrofos internos.
+# Extracts lowercase words while preserving internal hyphens and apostrophes.
 def words(text): return re.findall(r"\b[\w]+(?:[-’'][\w]+)*\b",text.lower(), re.UNICODE)
-# Cuenta secuencias de n palabras para comparar la cobertura textual.
+# Counts n-word sequences to compare text coverage.
 def grams(w,n=4): return Counter(tuple(w[i:i+n]) for i in range(max(0,len(w)-n+1)))
-# Calcula la proporción de elementos de origen retenidos en otro contador.
+# Calculates the fraction of source elements retained in another counter.
 def ratio(a,b):
     if not a: return 1.0
     return sum((a & b).values())/sum(a.values())
 
-# Normaliza celdas y convierte una tabla a Markdown de barras o a HTML.
+# Normalizes cells and renders a table as pipe Markdown or HTML.
 def table_md(rows, style):
     rows=[[norm(str(v)) if v is not None else '' for v in r] for r in rows]
     if not rows: return ''
@@ -90,23 +90,23 @@ def table_md(rows, style):
     if style=='html':
         from html import escape
         return '<table>\n'+ '\n'.join('<tr>' + ''.join('<td>'+escape(v)+'</td>' for v in r)+'</tr>' for r in rows) + '\n</table>'
-    # Escapa barras y elimina saltos de línea dentro de una celda Markdown.
+    # Escapes pipes and removes line breaks inside a Markdown cell.
     def esc(v): return v.replace('|','\\|').replace('\n',' ')
     return '\n'.join(['| '+' | '.join(map(esc,rows[0]))+' |','| '+' | '.join(['---']*w)+' |'] + ['| '+' | '.join(map(esc,r))+' |' for r in rows[1:]])
 
 # P01/P03: uniform normalization for comparable prose, without treating
 # Markdown table separators or line-wrap hyphens as missing text.
-# Normaliza Unicode y palabras partidas para comparar prosa y celdas.
+# Normalizes Unicode and split words for prose and cell comparisons.
 def comparable_tokens(text):
     text = unicodedata.normalize('NFKC', str(text)).replace('\u00ad', '')
     text = re.sub(r'([A-Za-z]{2,})-\s*\n\s*([a-z]{2,})', r'\1\2', text)
     return re.findall(r"\w+(?:[.,]\d+)*", text.casefold(), re.UNICODE)
 
-# Recompone palabras divididas con guion entre dos líneas.
+# Rejoins words hyphenated across two lines.
 def repair_hyphens(text):
     return re.sub(r'([A-Za-z]{2,})-\s*\n\s*([a-z]{2,})', r'\1\2', text)
 
-# Recupera líneas con coordenadas y estima el orden de lectura en dos columnas.
+# Recovers positioned lines and estimates reading order in two columns.
 def layout_lines(blocks, page_width):
     """Conservative 2-column block ordering; otherwise retain vertical order."""
     items=[]
@@ -137,7 +137,7 @@ def layout_lines(blocks, page_width):
         ordered=sorted(items,key=lambda z:(z[0][1],z[0][0]))
     return ordered, split
 
-# Agrupa líneas próximas y alineadas en párrafos, reparando palabras partidas.
+# Groups nearby aligned lines into paragraphs and repairs split words.
 def format_prose(items):
     """Conservatively repair wrapped lines inside nearby same-column blocks."""
     if not items: return ''
@@ -156,7 +156,7 @@ def format_prose(items):
     groups.append(current)
     return '\n\n'.join(groups)
 
-# Mide la retención de tokens de las celdas tras renderizar la tabla.
+# Measures cell-token retention after rendering a table.
 def table_token_coverage(rows, rendered):
     source=Counter(t for row in rows for cell in row if cell is not None for t in comparable_tokens(cell))
     # HTML markup and Markdown separator bars should not count as textual cells.
@@ -166,7 +166,7 @@ def table_token_coverage(rows, rendered):
     output=Counter(comparable_tokens(unescape(clean)))
     return ratio(source,output)
 
-# Rasteriza una página, ejecuta Tesseract y devuelve texto y confianza media.
+# Rasterizes a page, runs Tesseract, and returns text and mean confidence.
 def run_ocr_on_page(page, i):
     import pytesseract
     from PIL import Image
@@ -183,7 +183,7 @@ def run_ocr_on_page(page, i):
     except Exception as e:
         return "", 0.0
 
-# Extrae texto, encabezados, tablas e imágenes; aplica OCR y registra riesgos y vacíos.
+# Extracts text, headings, tables, and images; applies OCR and records risks and gaps.
 def extract_pages(doc, src, opt, asset_dir, stem):
     pages=[]; all_risks=[]; transform=[]; gap_entries=[]; image_count=0; tables_count=0; title=None
     with pdfplumber.open(src) as plumber:
@@ -193,18 +193,18 @@ def extract_pages(doc, src, opt, asset_dir, stem):
             table_checks=[]; prose_reference=''; figure_excluded=not opt.images
             page_gaps=[]; page_risks=[]; text=raw; ocr_conf=None
 
-            # Detecta páginas con poco texto y decide si requieren OCR inicial.
+            # Detects pages with little text and decides whether initial OCR is needed.
             is_scanned = len(words(raw)) < 3 and (len(page.get_images()) or len(raw.strip()) == 0)
 
             if is_scanned:
                 if opt.ocr and shutil.which('tesseract'):
                     text, ocr_conf = run_ocr_on_page(page, i)
-                    transform.append(f'page {i+1}: OCR reactivo ejecutado (página escaneada) con confianza {ocr_conf}')
+                    transform.append(f'page {i+1}: reactive OCR applied (scanned page) with confidence {ocr_conf}')
                 else:
                     msg=f'[Context gap: page {i+1} is scanned; text not extractable with [OCR Fallback] = off]'
                     page_gaps.append(msg); text=''
 
-            # Registra indicios de codificación dañada y posibles problemas de columnas.
+            # Records garbled-encoding indicators and possible column issues.
             indicators=re.findall(r'[\ufffd\ue000-\uf8ff]|\(cid:\d+\)',raw)
             if raw and len(indicators)/len(raw)>=0.01: page_risks.append(f'page {i+1}: garbled-encoding indicators ({100*len(indicators)/len(raw):.1f}%)')
 
@@ -214,7 +214,7 @@ def extract_pages(doc, src, opt, asset_dir, stem):
                     if any(b is not a and a['bbox'][2]<=b['bbox'][0] and min(a['bbox'][3],b['bbox'][3])-max(a['bbox'][1],b['bbox'][1])>20 for b in textblocks):
                         page_risks.append(f'page {i+1}: possible multi-column layout; reading order not layout-aware at this tier'); break
 
-            # Prepara las líneas e identifica un posible encabezado por tamaño tipográfico.
+            # Prepares lines and identifies a possible heading by font size.
             lines=[norm(x) for x in repair_hyphens(text).splitlines() if x.strip()]
             if two_columns: transform.append(f'page {i+1}: conservative two-column ordering applied')
             heading=None
@@ -234,7 +234,7 @@ def extract_pages(doc, src, opt, asset_dir, stem):
                         heading=s
                         if title is None: title=s
 
-            # Construye el cuerpo Markdown con marcadores de página, OCR y encabezados.
+            # Builds the Markdown body with page/OCR markers and headings.
             parts=[]
             if opt.markers: parts.append(f'<!-- page {i+1} -->')
             if ocr_conf is not None: parts.append(f'<!-- OCR page {i+1} conf={ocr_conf}{" LOW" if ocr_conf<60 else ""} -->')
@@ -242,7 +242,7 @@ def extract_pages(doc, src, opt, asset_dir, stem):
                 parts.append(('## ' if title and heading!=title else '# ')+heading)
                 lines.remove(heading)
 
-            # Detecta tablas y combina sus celdas con el texto posicionado sin duplicarlo.
+            # Detects tables and combines cells with positioned text without duplication.
             page_tables=[]
             if opt.quality!='fast' and ocr_conf is None:
                 try: page_tables=plumber.pages[i].find_tables()
@@ -296,7 +296,7 @@ def extract_pages(doc, src, opt, asset_dir, stem):
                 page_gaps.append(f'[Context gap: page {i+1} has no extractable text]')
             parts.extend(page_gaps)
 
-            # Extrae imágenes a recursos externos o registra su exclusión.
+            # Extracts images as external resources or records their exclusion.
             if opt.images:
                 for j,img in enumerate(page.get_images(full=True),1):
                     try:
@@ -311,7 +311,7 @@ def extract_pages(doc, src, opt, asset_dir, stem):
 
             all_risks.extend(page_risks)
 
-            # Intenta un rescate por OCR si la cobertura inicial de una página resulta baja.
+            # Attempts OCR rescue when initial page coverage is low.
             source_words = words(text)
             projected_words = words('\n\n'.join(parts))
             if opt.ocr and not is_scanned and not page_tables and len(source_words) >= 20 and shutil.which('tesseract'):
@@ -320,7 +320,7 @@ def extract_pages(doc, src, opt, asset_dir, stem):
                     ocr_text, ocr_c = run_ocr_on_page(page, i)
                     ocr_lines = [norm(x) for x in ocr_text.splitlines() if x.strip()]
                     ocr_parts = []
-                    if opt.markers: ocr_parts.append(f'<!-- page {i+1} (Rescate OCR conf={ocr_c}) -->')
+                    if opt.markers: ocr_parts.append(f'<!-- page {i+1} (OCR rescue conf={ocr_c}) -->')
                     if ocr_lines: ocr_parts.append('\n\n'.join(ocr_lines))
 
                     ocr_ratio = ratio(grams(words(ocr_text)), grams(words('\n\n'.join(ocr_parts))))
@@ -328,14 +328,14 @@ def extract_pages(doc, src, opt, asset_dir, stem):
                         parts = ocr_parts
                         text = ocr_text
                         ocr_conf = ocr_c
-                        transform.append(f'page {i+1}: Rescate por OCR Reactivo completado (cobertura mejorada de {initial_ratio:.1%} a {ocr_ratio:.1%})')
+                        transform.append(f'page {i+1}: reactive OCR rescue completed (coverage improved from {initial_ratio:.1%} to {ocr_ratio:.1%})')
 
-            # Acumula el resultado de la página y sus evidencias de extracción.
+            # Accumulates page results and extraction evidence.
             gap_entries.extend(f'page {i+1}: {x}' for x in page_gaps)
             pages.append({'body':'\n\n'.join(parts),'source':norm(text),'gaps':page_gaps,'risk':page_risks,'ocr_conf':ocr_conf,'prose_reference':prose_reference,'tables':table_checks,'figures_excluded':figure_excluded})
     return pages, title, gap_entries,all_risks,transform,image_count,tables_count
 
-# Revisa YAML, cobertura de prosa y tablas, imágenes y vacíos; calcula procedencia textual.
+# Checks YAML, prose/table coverage, images, and gaps; computes text provenance.
 def qc(md_path,pages,images,qc_threshold=0.88):
     parsed=md_path.read_text(encoding='utf-8'); issues=[]
     if not parsed.strip(): issues.append('[QC gap: output empty]')
@@ -371,7 +371,7 @@ def qc(md_path,pages,images,qc_threshold=0.88):
         if not image.exists(): issues.append(f'[QC gap: missing image {image.name}]')
     return issues,ratios,prov,unresolved
 
-# Coordina la conversión por archivo, publica resultados y recursos y escribe el manifiesto.
+# Coordinates per-file conversion, publishes results/resources, and writes the manifest.
 def run(paths,output_dir,opt):
     opt.resolve(); out=Path(output_dir).expanduser().resolve(); out.mkdir(parents=True,exist_ok=True)
     probe=out/'.pdf2md_write_test'; probe.write_text('ok'); probe.unlink()
@@ -393,7 +393,7 @@ def run(paths,output_dir,opt):
                     target=out/f'{stem}_{n}.md'; n+=1
                 used.add(target); stem=target.stem
                 # Generate entirely in staging; do not disturb existing outputs on failure.
-                # Genera y verifica la salida en una carpeta temporal antes de publicarla.
+                # Generates and verifies output in a temporary directory before publication.
                 with tempfile.TemporaryDirectory(prefix='.pdf2md-',dir=out) as staging:
                     stage=Path(staging)
                     staged_asset=stage/'assets'/stem
@@ -410,7 +410,7 @@ def run(paths,output_dir,opt):
                     stage_md=stage/'converted.md'
                     stage_md.write_text(content,encoding='utf-8')
                     assets=list(staged_asset.glob('*')) if staged_asset.exists() else []
-                    # Determina el estado PASS, PARTIAL o FAIL y el nombre de salida correspondiente.
+                    # Determines PASS, PARTIAL, or FAIL status and the corresponding output name.
                     issues,cover,prov,unresolved=qc(stage_md,pages,assets,opt.qc_threshold)
                     status='FAIL' if issues else 'PARTIAL' if unresolved else 'PASS'
                     # A failed attempt never overwrites a previous successful Markdown.
@@ -421,7 +421,7 @@ def run(paths,output_dir,opt):
                             destination=out/f'{stem}.{status}.{k}.md'; k+=1
                     # Every attempt gets immutable, unique image paths. Never replace
                     # assets referenced by a previously committed Markdown document.
-                    # Publica imágenes con rutas únicas y revierte sus archivos si falla la escritura final.
+                    # Publishes images with unique paths and rolls them back if final writing fails.
                     committed_asset=None
                     if assets:
                         import uuid
@@ -452,7 +452,7 @@ def run(paths,output_dir,opt):
         except Exception as exc:
             rec.update(status='ERROR',errors=[str(exc)])
         reports.append(rec)
-    # Construye el manifiesto global con estados, cobertura, huellas y errores por archivo.
+    # Builds the global manifest with per-file status, coverage, fingerprints, and errors.
     lines=['# PDF → Markdown Conversion Manifest','',f'- Quality tier: {opt.quality} (OCR: {opt.ocr}, images: {opt.images}, page markers: {opt.markers}, table style: {opt.table_style})',f'- Output directory: {out}',f'- Inputs: {len(reports)} | QC passed: {sum(r["status"]=="PASS" for r in reports)}','- Verification scope: text-token and table-cell consistency against extractor output; rendered-page fidelity and excluded figures are NOT verified.','', '| # | Input | Pages | Output | QC | Gaps | Risks |','|---|---|---:|---|---|---:|---:|']
     for j,r in enumerate(reports,1):
         lines.append(f'| {j} | {Path(r["input"]).name} | {r.get("pages","—")} | {Path(r.get("output", "—")).name} | {r["status"]} | {r.get("gaps","—")} | {r.get("risks","—")} |')
@@ -471,18 +471,18 @@ def run(paths,output_dir,opt):
     manifest.write_text('\n'.join(lines)+'\n',encoding='utf-8')
     return reports,manifest
 
-# Interpreta argumentos de terminal, construye opciones y comunica el resultado de conversión.
+# Parses terminal arguments, builds options, and reports conversion results.
 def main():
     ap=argparse.ArgumentParser(description=__doc__); ap.add_argument('pdfs',nargs='+'); ap.add_argument('--output-dir',default='markdown_output'); ap.add_argument('--quality',default='balanced'); ap.add_argument('--ocr',choices=['on','off']); ap.add_argument('--images',choices=['on','off']); ap.add_argument('--page-markers',choices=['on','off']); ap.add_argument('--table-style',choices=['pipe','html'],default='pipe'); ap.add_argument('--max-pages',type=int); ap.add_argument('--overwrite',action='store_true'); ap.add_argument('--qc-threshold',type=float,default=0.88)
     args_list = [arg for arg in sys.argv[1:] if not arg.startswith('-f') and not arg.endswith('.json') and '/kernels/' not in arg]
     if not args_list:
-        print("[Aviso] Se definió la lógica de conversión correctamente. Para usarla en Jupyter/Colab, llama a la función `run()` directamente con los argumentos deseados o ejecuta el script mediante la terminal.")
+        print("[Notice] Conversion logic defined successfully. In Jupyter/Colab, call `run()` directly with the desired arguments or run the script from a terminal.")
         return 0
     a=ap.parse_args(args_list); opt=Options(a.quality,None if a.ocr is None else a.ocr=='on',None if a.images is None else a.images=='on',None if a.page_markers is None else a.page_markers=='on',a.table_style,a.max_pages,a.overwrite,a.qc_threshold)
     try: reports,manifest=run(a.pdfs,a.output_dir,opt)
     except (ValueError,RuntimeError,OSError) as e: print(f'[Context gap: {e}]',file=sys.stderr); return 2
     print(manifest.read_text()); return 1 if any(r['status']!='PASS' for r in reports) else 0
-# Entrada original: diferencia la ejecución de terminal de la ejecución en un kernel.
+# Original entry point: distinguishes terminal execution from kernel execution.
 if __name__=='__main__':
     if 'ipykernel' not in sys.modules:
         sys.exit(main())
@@ -492,7 +492,7 @@ if __name__=='__main__':
 
 
 # ============================================================================
-# Celda original 3: Detección del entorno y preparación de carpetas de entrada y salida
+# Original cell 3: Environment detection and input/output directory preparation
 # ============================================================================
 
 # Detect the notebook workspace before searching for PDF files.
@@ -500,7 +500,7 @@ import os
 import sys
 from pathlib import Path
 
-# Selecciona la carpeta de entrada según Colab, Deepnote o el directorio actual.
+# Selects the input directory for Colab, Deepnote, or the current environment.
 def detect_pdf_input_dir():
     """Return the input workspace for the current notebook environment."""
     if "google.colab" in sys.modules or "COLAB_RELEASE_TAG" in os.environ:
@@ -510,7 +510,7 @@ def detect_pdf_input_dir():
     # JetBrains Datalore and local Jupyter use the current notebook directory.
     return Path.cwd()
 
-# Prepara las rutas del entorno y muestra los archivos detectados.
+# Prepares environment paths and displays detected files.
 PDF_INPUT_DIR = detect_pdf_input_dir()
 PDF_OUTPUT_DIR = PDF_INPUT_DIR / "markdown_output"
 PDF_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -523,10 +523,10 @@ for file in sorted(PDF_OUTPUT_DIR.glob("*.md")):
     print(file.name)
 
 # ============================================================================
-# Celda original 4: Descubrimiento de PDF y ejecución secuencial de la conversión
+# Original cell 4: PDF discovery and sequential conversion
 # ============================================================================
 
-# Enumera los PDF de entrada de forma estable antes de procesarlos.
+# Enumerates input PDFs in stable order before processing.
 pdf_files = sorted(
     [
         p for p in Path(PDF_INPUT_DIR).iterdir()
@@ -535,12 +535,12 @@ pdf_files = sorted(
     key=lambda p: (p.name.casefold(), p.name)
 )
 
-print(f"Carpeta de entrada: {PDF_INPUT_DIR}")
-print(f"Archivos PDF encontrados: {len(pdf_files)}")
+print(f"Input folder: {PDF_INPUT_DIR}")
+print(f"PDF files found: {len(pdf_files)}")
 
-# Invoca el conversor con calidad alta, OCR e imágenes desactivados y sobrescritura.
+# Invokes the converter with high quality, OCR/images disabled, and overwrite enabled.
 if pdf_files:
-    opciones = Options(
+    options = Options(
         quality="high",
         ocr=False,
         images=False,
@@ -550,15 +550,15 @@ if pdf_files:
     reports, manifest = run(
         pdf_files,
         PDF_OUTPUT_DIR,
-        opciones
+        options
     )
 
-    print("Conversión secuencial finalizada.")
+    print("Sequential conversion completed.")
 else:
-    print("No se encontraron archivos PDF.")
+    print("No PDF files found.")
 
 # ============================================================================
-# Celda original 5: Auditoría de fidelidad mediante muestreo de documentos y páginas
+# Original cell 5: Fidelity auditing through document/page sampling
 # ============================================================================
 
 from pathlib import Path
@@ -666,7 +666,7 @@ print(f"Documents selected: {len(SAMPLES)}")
 # 4. TEXT NORMALIZATION AND COVERAGE
 # ============================================================
 
-# Normaliza texto para la auditoría de retención de tokens por página.
+# Normalizes text for per-page token-retention auditing.
 def normalize_tokens(text):
     """Normalize extracted text for token-retention comparison."""
 
@@ -685,7 +685,7 @@ def normalize_tokens(text):
     )
 
 
-# Compara multiconjuntos de tokens y devuelve cobertura o None si falta texto de origen.
+# Compares token multisets and returns coverage, or None for missing source text.
 def token_coverage(source, target):
     """Calculate multiset token-retention coverage."""
 
@@ -706,7 +706,7 @@ def token_coverage(source, target):
 # 5. EXTRACT CORRESPONDING MARKDOWN PAGE
 # ============================================================
 
-# Localiza la sección de una página Markdown a partir de sus marcadores numerados.
+# Locates a Markdown page section using numbered markers.
 def extract_md_page(markdown, page_number):
     """
     Extract one Markdown page using page markers.
