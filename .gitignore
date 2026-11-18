@@ -10,6 +10,9 @@ build/
 .micromamba/
 .venv/
 
+# Local agent registry and cache
+/.atl/
+
 # Test outputs (conversion results land beside the PDFs)
 test-pdfs/output/
 test-pdfs/.gen_images/
