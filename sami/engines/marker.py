@@ -265,19 +265,21 @@ def convert(
     logger,
     stage_logger,
     stage_done_logger,
+    converter=None,
 ) -> EngineResult:
     """Run SAMI's original Marker pipeline into the request staging directory."""
     from marker.output import text_from_rendered
 
     if marker_mode not in ("fast", "balanced"):
         raise ValueError(f"unsupported internal Marker mode: {marker_mode}")
-    converter = build_converter(
-        marker_mode,
-        cpu_config=cpu_config,
-        logger=logger,
-        stage_logger=stage_logger,
-        stage_done_logger=stage_done_logger,
-    )
+    if converter is None:
+        converter = build_converter(
+            marker_mode,
+            cpu_config=cpu_config,
+            logger=logger,
+            stage_logger=stage_logger,
+            stage_done_logger=stage_done_logger,
+        )
     rendered = converter(str(request.input_path), pdf_name=request.input_path.name)
     markdown, _extension, images = text_from_rendered(rendered)
     request.staging_dir.mkdir(parents=True, exist_ok=True)

@@ -2,7 +2,7 @@
 """sami — Smart Automated Markdown Interpreter.
 
 Convert PDF files to Markdown with figures extracted.
-Uses Marker for conversion: local, keyless, no API needed.
+Converts PDFs locally with Caste or Marker engines.
 
 For each input PDF, creates a folder with the same stem containing:
   - <stem>.md  (text + LaTeX equations + Markdown tables)
@@ -12,8 +12,9 @@ Usage:
     sami paper.pdf                     # -> paper/paper.md + figures
     sami paper.pdf -o out/             # -> out/paper.md + figures
     sami a.pdf b.pdf                   # batch convert
-    sami paper.pdf --mode fast         # faster, lower quality
-    sami paper.pdf --no-strip-refs     # keep the references section
+    sami paper.pdf --mode fast         # Caste fast mode
+    sami paper.pdf --mode quality      # Marker balanced profile
+    sami paper.pdf --json              # protocol 1 JSONL on stdout
     sami paper.pdf --flat              # no subfolder, output beside the PDF
     sami paper.pdf -q                  # quiet mode, minimal output
 
@@ -21,21 +22,29 @@ Exit codes: 0 success, 1 at least one PDF failed, 2 usage error.
 """
 from __future__ import annotations
 
-from sami.engines.marker import build_converter as build_marker_converter, write_figures
-
 import argparse
+import contextlib
 import os
 import re
 import shutil
 import sys
 import tempfile
 import time
+import uuid
 from pathlib import Path
 
 import atexit
 import signal
 
-VALID_MODES = ("fast", "balanced")
+from sami.contracts import (
+    ConversionOptions,
+    ConversionRequest,
+    JobResult,
+    RunResult,
+)
+from sami.events import EventSequencer
+
+VALID_MODES = ("fast", "balanced", "quality")
 MIN_VRAM_GB_FOR_VLM = 8
 
 
@@ -43,7 +52,7 @@ MIN_VRAM_GB_FOR_VLM = 8
 # App home directory: ~/.sami/
 # ---------------------------------------------------------------------------
 
-def ensure_app_home() -> Path:
+def ensure_app_home(*, require_llama_server: bool = True) -> Path:
     """Create and return the sami home directory (~/.sami/)."""
     app_home = Path(os.environ.get("SAMI_HOME", Path.home() / ".sami"))
     app_home.mkdir(exist_ok=True)
@@ -53,7 +62,8 @@ def ensure_app_home() -> Path:
     (app_home / "bin").mkdir(exist_ok=True)
     os.environ.setdefault("HF_HOME", str(app_home / "cache" / "huggingface"))
     os.environ.setdefault("TORCH_HOME", str(app_home / "cache" / "torch"))
-    _ensure_llama_server(app_home)
+    if require_llama_server:
+        _ensure_llama_server(app_home)
     return app_home
 
 
@@ -322,11 +332,13 @@ _MARKDOWN_DECOR = re.compile(r"[*_`~]|<[^>]+>")
 # ---------------------------------------------------------------------------
 
 _QUIET = False
+_JSON_MODE = False
+_ACTIVE_PROGRESS_CALLBACK = None
 
 
 def log(msg: str, end: str = "\n", flush: bool = True) -> None:
     if not _QUIET:
-        print(msg, end=end, flush=flush)
+        print(msg, end=end, flush=flush, file=sys.stderr if _JSON_MODE else sys.stdout)
 
 
 def log_stage(pdf_name: str, stage: str, end: str = "\n", flush: bool = True) -> None:
@@ -335,6 +347,16 @@ def log_stage(pdf_name: str, stage: str, end: str = "\n", flush: bool = True) ->
 
 def log_stage_done(elapsed: float) -> None:
     log(f"  ✓ {elapsed:.1f}s")
+
+
+def _marker_stage_logger(name: str, stage: str, end: str = "\n", flush: bool = True) -> None:
+    log_stage(name, stage, end=end, flush=flush)
+    if _ACTIVE_PROGRESS_CALLBACK is not None:
+        _ACTIVE_PROGRESS_CALLBACK(stage)
+
+
+def _marker_stage_done(elapsed: float) -> None:
+    log_stage_done(elapsed)
 
 
 def _fmt_size(nbytes: int) -> str:
@@ -486,7 +508,27 @@ def convert_pdf(
 # CLI
 # ---------------------------------------------------------------------------
 
-def main() -> int:
+def _effective_device(engine: str) -> str:
+    if engine == "caste":
+        return "cpu"
+    configured = os.environ.get("TORCH_DEVICE", "").lower()
+    fast_device = os.environ.get("FAST_DETECTOR_DEVICE", "").lower()
+    backend = os.environ.get("SURYA_INFERENCE_BACKEND", "").lower()
+    if configured == "cpu" or fast_device == "cpu":
+        return "cpu"
+    if backend == "llamacpp" and os.environ.get("LLAMA_CPP_NGL", "0") == "0":
+        return "cpu"
+    try:
+        import torch
+        if torch.cuda.is_available():
+            return "rocm" if getattr(torch.version, "hip", None) else "cuda"
+    except Exception:
+        pass
+    return "cpu"
+
+
+def main(argv: list[str] | None = None) -> int:
+    global _QUIET, _JSON_MODE, _ACTIVE_PROGRESS_CALLBACK
     parser = argparse.ArgumentParser(
         prog="sami",
         description="Convert PDF files to Markdown with extracted figures.",
@@ -501,12 +543,12 @@ def main() -> int:
         help="output directory (default: beside each PDF)",
     )
     parser.add_argument(
-        "--mode", choices=VALID_MODES, default=None,
-        help="conversion quality: fast or balanced (default: auto by device)",
+        "--mode", choices=VALID_MODES, default="balanced",
+        help="conversion mode: Caste fast, Marker balanced, or Marker quality (default: balanced)",
     )
     parser.add_argument(
         "--no-strip-refs", action="store_true",
-        help="keep the references/bibliography section",
+        help="accepted for compatibility; references are retained by all modes",
     )
     parser.add_argument(
         "--flat", action="store_true",
@@ -516,11 +558,14 @@ def main() -> int:
         "-q", "--quiet", action="store_true",
         help="minimal output, no per-stage logging",
     )
-    args = parser.parse_args()
-    strip_refs = not args.no_strip_refs
-
-    global _QUIET
+    parser.add_argument(
+        "--json", action="store_true",
+        help="emit protocol 1 JSON Lines events on stdout",
+    )
+    args = parser.parse_args(argv)
     _QUIET = args.quiet
+    _JSON_MODE = args.json
+    event_stdout = sys.stdout
 
     pdfs: list[Path] = []
     for raw in args.pdf:
@@ -532,41 +577,173 @@ def main() -> int:
             print(f"Not a PDF: {raw}", file=sys.stderr)
             return 2
         pdfs.append(p)
+    pdfs = list(dict.fromkeys(pdfs))
 
-    ensure_app_home()
+    from sami.engines import convert as convert_engine, select_engine
+
+    mode = args.mode
+    selection = select_engine(mode)
+    with contextlib.redirect_stdout(sys.stderr if args.json else sys.stdout):
+        ensure_app_home(require_llama_server=selection.engine == "marker")
     _install_signal_handlers()
     os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
     cpu_config = _configure_cpu()
+    from sami import __version__
+    run_id = uuid.uuid4().hex
+    sequencer = EventSequencer(run_id)
+
+    def emit(event: str, data: dict, *, job_id: str | None = None, attempt: int | None = None) -> None:
+        if args.json:
+            print(
+                sequencer.create(event, data, job_id=job_id, attempt=attempt).to_json_line(),
+                file=event_stdout,
+                flush=True,
+            )
+
+    emit("run_started", {"mode": mode, "default_mode": "balanced", "version": __version__})
+    emit("inputs_resolved", {"count": len(pdfs), "inputs": [str(pdf) for pdf in pdfs], "issues": []})
     log(f"sami: {len(pdfs)} file(s) queued")
     total_t0 = time.monotonic()
+    effective_device = _effective_device(selection.engine)
+    converter = None
+    if selection.engine == "marker":
+        from sami.engines.marker import build_converter
+        try:
+            with contextlib.redirect_stdout(sys.stderr if args.json else sys.stdout):
+                converter = build_converter(
+                    selection.profile,
+                    cpu_config=cpu_config,
+                    logger=log,
+                    stage_logger=_marker_stage_logger,
+                    stage_done_logger=_marker_stage_done,
+                )
+            _CHILD_PIDS.update(_collect_llama_pids())
+        except (Exception, SystemExit) as exc:
+            _cleanup_all()
+            failed: list[JobResult] = []
+            for pdf in pdfs:
+                job_id = uuid.uuid4().hex
+                emit("job_started", {
+                    "input": str(pdf), "engine": selection.engine,
+                    "device": effective_device,
+                }, job_id=job_id, attempt=1)
+                result = JobResult(
+                    job_id=job_id,
+                    input_path=pdf,
+                    mode=mode,
+                    engine=selection.engine,
+                    device=effective_device,
+                    status="failed",
+                    errors=({
+                        "code": "ENGINE_INITIALIZATION_ERROR",
+                        "message": str(exc),
+                    },),
+                    duration_seconds=0,
+                )
+                failed.append(result)
+                emit("job_finished", {"result": result.to_wire()}, job_id=job_id, attempt=1)
+            code = 2 if isinstance(exc, SystemExit) else 1
+            run = RunResult(run_id=run_id, results=tuple(failed), exit_code=code)
+            emit("run_finished", {
+                "totals": run.totals, "duration_seconds": 0, "exit_code": code,
+            })
+            return code
 
-    converter = build_marker_converter(
-        args.mode, cpu_config=cpu_config, logger=log,
-        stage_logger=log_stage, stage_done_logger=log_stage_done,
-    )
-
-    # Snapshot child PIDs after model load (llama-server spawns here)
-    _CHILD_PIDS.update(_collect_llama_pids())
-
-    done = 0
-    failed = 0
-    total_pages = 0
+    results: list[JobResult] = []
     try:
         for i, pdf in enumerate(pdfs, 1):
+            job_id = uuid.uuid4().hex
             if len(pdfs) > 1:
                 log(f"\n[{i}/{len(pdfs)}]")
             out_dir = Path(args.output).resolve() if args.output else pdf.parent
+            destination = out_dir if args.flat else out_dir / pdf.stem
+            started = time.monotonic()
+            staging: Path | None = None
+            emit("job_started", {
+                "input": str(pdf), "index": i, "total": len(pdfs),
+                "engine": selection.engine, "device": effective_device,
+            }, job_id=job_id, attempt=1)
+
+            def stage_progress(_name: str, stage: str, **_kwargs) -> None:
+                emit("job_progress", {
+                    "stage": stage.strip(), "completed": None, "total": None,
+                }, job_id=job_id, attempt=1)
+
+            def stage_done(_elapsed: float) -> None:
+                log_stage_done(_elapsed)
+
             try:
-                md = convert_pdf(converter, pdf, out_dir, strip_refs, args.flat)
-                total_pages += converter.page_count or 0
-                done += 1
+                out_dir.mkdir(parents=True, exist_ok=True)
+                staging = Path(tempfile.mkdtemp(prefix=f".{pdf.stem}-pdf2md-", dir=out_dir))
+                request = ConversionRequest(
+                    job_id=job_id,
+                    input_path=pdf,
+                    mode=mode,
+                    options=ConversionOptions(),
+                    staging_dir=staging,
+                    device=effective_device,
+                    attempt=1,
+                )
+                _ACTIVE_PROGRESS_CALLBACK = lambda stage: stage_progress(pdf.name, stage)
+                with contextlib.redirect_stdout(sys.stderr if args.json else sys.stdout):
+                    engine_result = convert_engine(
+                        request,
+                        cpu_config=cpu_config if selection.engine == "marker" else None,
+                        logger=log if selection.engine == "marker" else None,
+                        stage_logger=stage_progress if selection.engine == "marker" else None,
+                        stage_done_logger=stage_done if selection.engine == "marker" else None,
+                        converter=converter,
+                    )
+                staging.mkdir(parents=True, exist_ok=True)
+                md_name = f"{pdf.stem}.md"
+                markdown_path = staging / md_name
+                markdown_path.write_text(engine_result.markdown, encoding="utf-8")
+                destination.mkdir(parents=True, exist_ok=True)
+                for produced in sorted(staging.iterdir()):
+                    shutil.move(str(produced), str(destination / produced.name))
+                status = "partial" if engine_result.gaps else "succeeded"
+                result = JobResult(
+                    job_id=job_id,
+                    input_path=pdf,
+                    mode=mode,
+                    engine=selection.engine,
+                    device=effective_device,
+                    status=status,
+                    output_paths=(
+                        destination / md_name,
+                        *(destination / resource for resource in engine_result.resources),
+                    ),
+                    warnings=engine_result.warnings,
+                    duration_seconds=time.monotonic() - started,
+                    attempts=1,
+                )
+                for warning in engine_result.warnings:
+                    emit("warning", warning, job_id=job_id, attempt=1)
+                results.append(result)
+                emit("job_finished", {"result": result.to_wire()}, job_id=job_id, attempt=1)
+                log(f"  [{pdf.name}] Done: {engine_result.processed_pages} pages → {destination / md_name}")
             except Exception as exc:
-                failed += 1
                 print(f"FAILED: {pdf.name}: {exc}", file=sys.stderr)
+                result = JobResult(
+                    job_id=job_id,
+                    input_path=pdf,
+                    mode=mode,
+                    engine=selection.engine,
+                    device=effective_device,
+                    status="failed",
+                    errors=({"code": getattr(exc, "code", "CONVERSION_ERROR"), "message": str(exc)},),
+                    duration_seconds=time.monotonic() - started,
+                )
+                results.append(result)
+                emit("job_finished", {"result": result.to_wire()}, job_id=job_id, attempt=1)
+            finally:
+                _ACTIVE_PROGRESS_CALLBACK = None
+                if staging is not None:
+                    shutil.rmtree(staging, ignore_errors=True)
     except KeyboardInterrupt:
         print("\n[cleanup] Interrupted by user", file=sys.stderr)
         _cleanup_all()
-        return 130
+        exit_code = 130
     except BaseException:
         _cleanup_all()
         raise
@@ -575,14 +752,21 @@ def main() -> int:
         _cleanup_all()
 
     total_elapsed = time.monotonic() - total_t0
+    if 'exit_code' not in locals():
+        exit_code = 1 if any(result.status == "failed" for result in results) else 0
+    run_result = RunResult(run_id=run_id, results=tuple(results), exit_code=exit_code)
+    emit("run_finished", {
+        "totals": run_result.totals,
+        "duration_seconds": total_elapsed,
+        "exit_code": exit_code,
+    })
     log(f"\n{'=' * 60}")
-    log(f"  Summary: {done} converted, {failed} failed, {total_pages} total pages")
+    log(f"  Summary: {run_result.totals['succeeded'] + run_result.totals['partial']} converted, "
+        f"{run_result.totals['failed']} failed")
     log(f"  Total time: {total_elapsed:.1f}s")
-    if total_pages > 0:
-        log(f"  Throughput: {total_elapsed / total_pages:.1f}s/page")
     log(f"{'=' * 60}")
 
-    return 1 if failed else 0
+    return exit_code
 
 
 if __name__ == "__main__":
