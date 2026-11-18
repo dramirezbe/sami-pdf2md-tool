@@ -10,7 +10,9 @@ requires-python = ">=3.11,<3.14"
 license = "MIT"
 dependencies = [
     "marker-pdf==2.0.0",
+    "pdfplumber==0.11.9",
     "psutil>=5.9",
+    "pymupdf==2.1",
     "PyYAML>=6.0",
 ]
 

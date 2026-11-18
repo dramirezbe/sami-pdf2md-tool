@@ -2,7 +2,16 @@
 
 Opened: 2026-11-18 10:31:38. Plan split: 2026-11-18 11:39:08, America/Bogota (UTC−05:00).
 Reviewed code baseline: `6452f12`; currently declared version: `0.1.0`.
-Status: **design documentation only; do not implement, create branches, or publish until instructed later**.
+Status: **implementation authorized 2026-11-18**. Work is underway on `refactor/0_2_0_sami_cli`; U00 feasibility remains incomplete, so engine refactoring and support claims are gated on that evidence.
+
+## Implementation progress
+
+| Unit | Status | Evidence / next action |
+|---|---|---|
+| U00 | In progress; incomplete. | See [U00/U01 runtime and contract evidence](U00-U01-evidence.md). Baseline source files at `6452f12` and branch base `43007b5` compare identical for production paths. Both Marker profiles completed on two five-page PDFs in the locked Python 3.12 CPU environment; extracted pipeline outputs match baseline bytes. Caste was separately measured and is not the 15.7-second legacy Marker fast result. CPU path was explicitly configured for Torch, Surya, and llama.cpp. Native Windows and broader Debian/Ubuntu evidence remain unavailable. |
+| U01 | Implementation in progress; incomplete. | Added validated contracts and explicit wire representations in `sami/contracts.py`, protocol 1 JSONL events in `sami/events.py`, deferred Marker adapter and Caste fast adapter. Startup checks cover import, `--help`, and `--version` side effects. Twenty-one focused tests pass. Remaining: public CLI mode/protocol integration, full acceptance review, and any missing engine output guarantees recorded in plan 01. |
+
+Latest validation: `.venv/bin/python -m unittest discover -s tests -v` — 21 passed; `git diff --check` — clean. Runtime commands, environment and artifact paths are recorded in [U00/U01 evidence](U00-U01-evidence.md). U00/U01 remain incomplete pending their full acceptance criteria.
 
 The work is divided into five plans to execute in order. Each identifies files, contracts, work units, tests, evidence, and completion criteria. User requirements are fixed here; the technical choices proposed within each stage may be adjusted based on evidence without changing those requirements.
 
