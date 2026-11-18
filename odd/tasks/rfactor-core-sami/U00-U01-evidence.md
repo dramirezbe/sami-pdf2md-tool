@@ -91,7 +91,7 @@ git diff --check
 
 Outcome before CLI integration: 21 tests passed in 0.260 s. Latest suite after integration: 25 tests passed in 0.324 s; whitespace check clean. Tests exercise request/result/event wire round trips, Unicode and spaced paths, nested path values, optional and required field validation, unsupported values and nonfinite numbers, additive fields, sequence increments, JSONL framing with multiple messages and fragmented UTF-8 input, mode dispatch laziness, JSON CLI success, conversion failure, engine startup failure, publication, effective-device selection, and CLI import/help/version side effects. CLI startup checks confirm no app-home creation, downloads, heavy engine imports, or signal handler mutation for import, `--help`, or `--version`.
 
-Framing boundary: `Event.to_json()` emits one JSON record without a line terminator; `encode_jsonl()` appends LF per record; `JsonlEventDecoder` owns byte buffering and record splitting for fragmented streams. The tests cover fragmented UTF-8 and multiple records.
+Framing boundary: `Event.to_json_line()` emits one JSON record without a line terminator; `encode_jsonl()` appends LF per record; `JsonlEventDecoder` owns byte buffering and record splitting for fragmented streams. The tests cover fragmented UTF-8 and multiple records.
 
 
 ## Public CLI integration added after the baseline runs
@@ -110,9 +110,36 @@ All runs exited 0 and wrote five-page outputs. Fast took about 0.17 s and emitte
 
 ## Remaining acceptance gaps and next actions
 
-- **U00 incomplete:** native Windows 11 CPU/backend evidence is unavailable; WSL does not establish it. Debian/Ubuntu release matrix, clean-cache model downloads, RAM bounds, and broader corpus/content-quality assessment remain unverified. Continue only with bounded startup/inference captures on supported target hosts; record unavailable native Windows evidence as unavailable, not passed.
-- **U01 incomplete:** CLI modes, job/result conversion, and JSONL lifecycle events are connected. Cancellation still exits through the existing signal handler without guaranteeing a `cancelled` terminal `JobResult`. `health --json`, `--control-stdin`, and complete cancellation/error event semantics remain future work. Marker output is preserved on the tested corpus.
-- **U02 and later units:** Caste is extracted and smoke-tested, but its content behavior needs corpus review and the remaining planned engine/output work is not complete.
-- Initial Marker fast on the second PDF exposed a VLM/Docker startup dependency. The local CPU llama.cpp reruns succeeded, but detached inference process cleanup and cold-download recovery still need planned implementation and failure-path verification.
+### U00 — still incomplete
+
+- Native Windows 11 CPU conversion and inference-server evidence. WSL is not evidence of native Windows support.
+- Testing on defined Debian/Ubuntu releases with an explicit platform/architecture/backend matrix.
+- Clean-cache startup, complete model-download behavior, readiness timing, and RAM limits. The successful warm-cache reruns do not establish this.
+- Broader corpus/content review for figures, tables, equations, references/links, and scans. Preserve different expectations for Caste and Marker; byte parity on two PDFs is not a quality study.
+- Complete inference-service startup and failure-path evidence, including failed downloads/readiness, timeouts, process cleanup, and recovery. Initial Marker fast exposed a VLM/Docker startup dependency; the successful local llama.cpp reruns do not close those failure paths.
+
+Collect bounded startup/inference evidence on supported target hosts. Record unavailable native Windows or distribution evidence as unavailable, not passed.
+
+### U01 — still incomplete
+
+- Guarantee a terminal `cancelled` `JobResult` and `run_finished` on interruption, with process/staging cleanup. The existing signal-handler path does not guarantee them.
+- Collision-safe naming/publication is not yet implemented; current output may overwrite existing files. This is planned for U02 and remains an outstanding integration dependency.
+- Complete error events for failures before job processing, including app-home and runtime setup.
+- Implement the planned `health --json` and `--control-stdin` interfaces in their scheduled units and verify their public integration.
+- Review output beyond byte-for-byte Marker parity on the two test PDFs.
+
+CLI modes, job/result conversion, and JSONL lifecycle events are connected, but those partial successes do not close U01.
+
+### U02 and later units
+
+Caste is extracted and smoke-tested, but its content behavior needs broader corpus review. Numbered outputs, safe publication, diagnostics persistence, the fast health check, full CPU fallback/supervision, complete installation, remaining CLI behavior, and release acceptance remain planned work. UI `0.3.0` remains a separate later delivery.
+
+### Resume and evidence preservation
+
+Read the [implementation index and gap checklist](2026-11-18_10-31-38_sami-refactor-plan.md) before continuing. Re-run the focused test suite and record the current SHA/environment; do not infer that this report's earlier runs cover future changes. Artifacts under `/tmp` and user caches are local-only; Git preserves this written evidence and source, not the runtime artifacts/models. Regenerate missing evidence or state its absence explicitly.
 
 No U00/U01 completion claim is made here. No UI, release, merge, or new branch was created.
+
+## Handoff verification
+
+Before saving the handoff, reran `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest discover -s tests -v`: **25 tests passed in 0.242 s**. `git diff --check` and the planning documents' local-link/fence checks passed. No additional model downloads, conversions, platform tests, or inference-service failure tests were run for this handoff. The remaining acceptance gaps above are unchanged.

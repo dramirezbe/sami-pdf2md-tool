@@ -13,6 +13,28 @@ Status: **implementation authorized 2026-11-18**. Work is underway on `refactor/
 
 Latest validation: `.venv/bin/python -m unittest discover -s tests -v` — 25 passed; `git diff --check` — clean. Runtime commands, environment and artifact paths are recorded in [U00/U01 evidence](U00-U01-evidence.md). U00/U01 remain incomplete pending their full acceptance criteria.
 
+## Remaining acceptance work and handoff
+
+The following gaps are explicitly open. Existing passing tests and the two-file Marker parity checks do not close these acceptance criteria.
+
+| Unit | Outstanding evidence or behavior | Relevant implementation plan |
+|---|---|---|
+| U00 | Native Windows 11 CPU conversion and inference-server evidence. WSL does not establish native Windows support. | [01: U00 baseline and feasibility](01-cli-contracts-engines-outputs.md) |
+| U00 | Tests on explicitly defined Debian/Ubuntu releases and a documented OS/architecture/backend matrix. | [01: U00](01-cli-contracts-engines-outputs.md), [03: acceptance matrix](03-cli-batches-validation-release-0.2.0.md) |
+| U00 | Clean-cache startup, all model downloads, readiness timing, and RAM limits. Warm-cache runs are not cold-install evidence. | [02: installation and runtime validation](02-cli-diagnostics-runtime-installation.md) |
+| U00 | Broader content review covering figures, tables, equations, references/links, and scans, with engine-specific expectations. | [01: engine validation](01-cli-contracts-engines-outputs.md), [03: corpus](03-cli-batches-validation-release-0.2.0.md) |
+| U00 | Complete inference-service startup and failure-path evidence: bounded startup, failed downloads/readiness, process cleanup, and recovery. | [02: U04–U05](02-cli-diagnostics-runtime-installation.md) |
+| U01 | Interruption must produce a terminal `cancelled` job result and `run_finished`, with cleanup. This is not guaranteed by the current signal-handler path. | [01: protocol contract](01-cli-contracts-engines-outputs.md), [02: supervisor](02-cli-diagnostics-runtime-installation.md) |
+| U01 / U02 dependency | Collision-safe naming and publication remain incomplete; current output may overwrite existing files. Implement numbered outputs and transactional publication in U02. | [01: U02 outputs](01-cli-contracts-engines-outputs.md) |
+| U01 | Complete error events for failures before document processing, including app-home and runtime setup. Consumers must receive an explicit failure instead of only a crash or stderr. | [01: events](01-cli-contracts-engines-outputs.md), [03: exit/error semantics](03-cli-batches-validation-release-0.2.0.md) |
+| U01 / later integration | `health --json` and `--control-stdin` are planned but not implemented. Their absence must remain visible in the public-contract status. | [02: health](02-cli-diagnostics-runtime-installation.md), [03: CLI surface](03-cli-batches-validation-release-0.2.0.md) |
+| U01 | Broader output review beyond byte-for-byte Marker parity on the two test PDFs. | [01: U01 acceptance](01-cli-contracts-engines-outputs.md) |
+| U02 onward | All remaining engine/output, diagnostics/runtime, installation, CLI completion, validation, and release work remains open unless separately evidenced. No release-readiness claim. | Plans 01–03; UI remains a later `0.3.0` delivery. |
+
+Resume by reading [the evidence record](U00-U01-evidence.md), reproducing the focused test suite, and selecting the next incomplete work unit. Prioritize output-overwrite protection, terminal cancellation/pre-job error events, and the health/control contracts while collecting the missing platform/runtime evidence. Do not mark U00/U01 complete or publish `0.2.0` on the strength of the current checks alone.
+
+Runtime logs, models, and conversion outputs referenced under `/tmp` or user caches are machine-local and are not backed up by Git. Their commands, package/model identities, hashes, results, and limits are recorded in the evidence document. If those local artifacts are unavailable on resume, regenerate them or mark that evidence unavailable; do not assume a successful rerun.
+
 The work is divided into five plans to execute in order. Each identifies files, contracts, work units, tests, evidence, and completion criteria. User requirements are fixed here; the technical choices proposed within each stage may be adjusted based on evidence without changing those requirements.
 
 ## Implementation order
