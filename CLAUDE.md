@@ -51,21 +51,16 @@ sami paper.pdf -q                     # quiet mode
 
 ## GPU Support
 
-sami auto-detects GPU VRAM and selects the best mode:
-- **≥ 8 GB VRAM**: uses VLM layout (balanced mode) via Docker + NVIDIA Container Toolkit
-- **< 8 GB VRAM**: auto-falls back to RF-DETR layout (fast mode), no Docker needed
-- **No GPU**: uses RF-DETR layout (fast mode)
+All three modes are fully local and keyless — no Docker, no API keys required.
 
-VLM mode requires Docker with the NVIDIA Container Toolkit. The installer (`install.sh` and `setup.sh`) auto-installs it when GPU + Docker are detected.
+- **`fast` (Caste)**: CPU only, no GPU needed.
+- **`balanced` (default)**: RF-DETR layout via Torch — uses CUDA if available, falls back to CPU automatically. No inference server needed.
+- **`quality`**: VLM layout via llama.cpp (GGUF) — GPU offload is scaled to available VRAM:
+  - **≥ 8 GB VRAM**: full layer offload, fast quality conversion
+  - **4–8 GB VRAM**: partial offload, works but slower
+  - **< 4 GB VRAM or no GPU**: CPU inference (`-ngl 0`), works on any machine, just slower
 
-Manual NVIDIA Container Toolkit setup (if installer can't sudo):
-```bash
-curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
-curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
-sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
-sudo nvidia-ctk runtime configure --runtime=docker
-sudo systemctl restart docker
-```
+Hardware **never** changes the requested mode. If the GPU is insufficient for a given mode, sami warns and continues in that same mode on CPU.
 
 ## Exit Codes
 

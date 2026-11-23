@@ -99,7 +99,7 @@ Use this template to track implementation; do not fill it with assumed results:
 ## Technical details still open
 
 - Exact Debian/Ubuntu versions, architectures, and GPU/backend combinations: U00 must verify these before committing to support. Initial proposal: x86_64; this does not imply support for every Debian derivative/version.
-- Locks, packages, and CPU/GPU backend: resolve and pin in U00/U04. Having CUDA/ROCm in PyTorch does not prove the VLM uses the GPU.
+- Locks, packages, and CPU/GPU backend: resolve and pin in U00/U04. Having CUDA/ROCm in PyTorch does not prove the VLM uses the GPU. **Decided in [06 — engine backend and GPU policy](06-engine-backend-and-gpu-policy.md):** the only heavy-inference backend is local `llama.cpp` (GGUF); Docker/vllm is prohibited; GPU is a VRAM-scaled `-ngl` offload for the `quality` VLM only; hardware never switches the public mode.
 - The transport, event names, and commands in plan 01 are the proposed technical specification. Freeze them in tests before developing Electron.
 - Additional advanced OCR, image, page, and concurrency flags remain proposed extensions, with explicit scope in plan 03. They must not change the chosen fast profile or delay agreed requirements without a documented reason.
 
@@ -107,6 +107,7 @@ Use this template to track implementation; do not fill it with assumed results:
 
 - [Complete previous design, retained as a historical reference](00-previous-design-reference.md). Its old sections do not override the active plans.
 - [Caste reference code](../refactor-core-sami/PDF2MD_caste.py).
+- [06 — engine backend and GPU policy](06-engine-backend-and-gpu-policy.md): authorized decision on llama.cpp backend, per-mode device matrix, VRAM offload ladder, and Windows+Linux parity.
 - [Current SAMI entry point](../../../sami/cli.py), [metadata](../../../pyproject.toml), and [repository guide](../../../CLAUDE.md).
 
 This planning split only creates/modifies documents in this folder. It does not change the actual version, create branches, or execute installation/release steps.

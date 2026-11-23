@@ -45,7 +45,6 @@ from sami.contracts import (
 from sami.events import EventSequencer
 
 VALID_MODES = ("fast", "balanced", "quality")
-MIN_VRAM_GB_FOR_VLM = 8
 
 
 # ---------------------------------------------------------------------------
@@ -76,29 +75,45 @@ _LLAMA_CPP_RELEASES_API = (
 )
 
 
-def _platform_asset_suffix() -> str | None:
-    """Return the llama.cpp release asset suffix for this platform, or None."""
+def _platform_asset_suffix() -> dict | None:
+    """Return llama.cpp release asset info for this platform, or None if unsupported.
+
+    Returns a dict with keys:
+      suffix  — asset filename suffix to match
+      format  — "tgz" or "zip"
+      binary  — expected binary name after extraction
+    """
     import platform as _platform
     system = _platform.system()
     machine = _platform.machine().lower()
     if system == "Linux":
-        if machine in ("aarch64", "arm64"):
-            return "-ubuntu-arm64.tar.gz"
-        return "-ubuntu-x64.tar.gz"
+        suffix = "-ubuntu-arm64.tar.gz" if machine in ("aarch64", "arm64") else "-ubuntu-x64.tar.gz"
+        return {"suffix": suffix, "format": "tgz", "binary": "llama-server"}
     if system == "Darwin":
-        return "-macos-arm64.tar.gz" if machine == "arm64" else "-macos-x64.tar.gz"
+        suffix = "-macos-arm64.tar.gz" if machine == "arm64" else "-macos-x64.tar.gz"
+        return {"suffix": suffix, "format": "tgz", "binary": "llama-server"}
+    if system == "Windows":
+        suffix = (
+            "-bin-win-llama-server-arm64.zip"
+            if machine in ("aarch64", "arm64")
+            else "-bin-win-llama-server-x64.zip"
+        )
+        return {"suffix": suffix, "format": "zip", "binary": "llama-server.exe"}
     return None
 
 
 def _download_llama_server(bin_dir: Path) -> Path | None:
     """Download the llama-server binary from GitHub releases into bin_dir."""
     import json
-    import tarfile
     import urllib.request
 
-    suffix = _platform_asset_suffix()
-    if suffix is None:
+    asset_info = _platform_asset_suffix()
+    if asset_info is None:
         return None
+
+    suffix = asset_info["suffix"]
+    fmt = asset_info["format"]
+    binary_name = asset_info["binary"]
 
     log("llama-server not found, downloading from llama.cpp releases...")
     try:
@@ -130,23 +145,37 @@ def _download_llama_server(bin_dir: Path) -> Path | None:
 
     log(f"  Downloading: {asset_url.split('/')[-1]}")
     try:
-        tarball = bin_dir / "llama-server.tar.gz"
-        urllib.request.urlretrieve(asset_url, tarball)
+        archive_name = "llama-server.zip" if fmt == "zip" else "llama-server.tar.gz"
+        archive = bin_dir / archive_name
+        urllib.request.urlretrieve(asset_url, archive)
 
-        with tarfile.open(tarball, "r:gz") as tf:
-            members_to_extract = []
-            for member in tf.getmembers():
-                basename = Path(member.name).name
-                if basename.startswith("llama-server") or basename.startswith("lib"):
-                    member.name = basename
-                    members_to_extract.append(member)
-            tf.extractall(path=bin_dir, members=members_to_extract)
+        if fmt == "zip":
+            import zipfile
+            with zipfile.ZipFile(archive, "r") as zf:
+                members_to_extract = []
+                for member in zf.infolist():
+                    basename = Path(member.filename).name
+                    if basename.startswith("llama-server") or basename.startswith("lib"):
+                        member.filename = basename
+                        members_to_extract.append(member)
+                zf.extractall(path=bin_dir, members=members_to_extract)
+        else:
+            import tarfile
+            with tarfile.open(archive, "r:gz") as tf:
+                members_to_extract = []
+                for member in tf.getmembers():
+                    basename = Path(member.name).name
+                    if basename.startswith("llama-server") or basename.startswith("lib"):
+                        member.name = basename
+                        members_to_extract.append(member)
+                tf.extractall(path=bin_dir, members=members_to_extract)
 
-        tarball.unlink()
+        archive.unlink()
 
-        server_bin = bin_dir / "llama-server"
+        server_bin = bin_dir / binary_name
         if server_bin.is_file():
-            server_bin.chmod(server_bin.stat().st_mode | 0o111)
+            if sys.platform != "win32":
+                server_bin.chmod(server_bin.stat().st_mode | 0o111)
             log(f"  llama-server installed: {server_bin}")
             return server_bin
     except Exception as exc:
@@ -166,24 +195,28 @@ def _ensure_llama_server(app_home: Path) -> None:
     if shutil.which("llama-server"):
         return
 
-    local_bin = app_home / "bin" / "llama-server"
+    # Binary name is platform-dependent
+    local_bin_name = "llama-server.exe" if sys.platform == "win32" else "llama-server"
+    local_bin = app_home / "bin" / local_bin_name
     if local_bin.is_file():
         os.environ["LLAMA_CPP_BINARY"] = str(local_bin)
-        ld_path = str(app_home / "bin")
-        os.environ["LD_LIBRARY_PATH"] = (
-            f"{ld_path}:{os.environ['LD_LIBRARY_PATH']}"
-            if os.environ.get("LD_LIBRARY_PATH") else ld_path
-        )
+        if sys.platform != "win32":
+            ld_path = str(app_home / "bin")
+            os.environ["LD_LIBRARY_PATH"] = (
+                f"{ld_path}:{os.environ['LD_LIBRARY_PATH']}"
+                if os.environ.get("LD_LIBRARY_PATH") else ld_path
+            )
         return
 
     result = _download_llama_server(app_home / "bin")
     if result:
         os.environ["LLAMA_CPP_BINARY"] = str(result)
-        ld_path = str(app_home / "bin")
-        os.environ["LD_LIBRARY_PATH"] = (
-            f"{ld_path}:{os.environ['LD_LIBRARY_PATH']}"
-            if os.environ.get("LD_LIBRARY_PATH") else ld_path
-        )
+        if sys.platform != "win32":
+            ld_path = str(app_home / "bin")
+            os.environ["LD_LIBRARY_PATH"] = (
+                f"{ld_path}:{os.environ['LD_LIBRARY_PATH']}"
+                if os.environ.get("LD_LIBRARY_PATH") else ld_path
+            )
 
 # ---------------------------------------------------------------------------
 # Process cleanup: ensure llama-server and other child processes don't orphan

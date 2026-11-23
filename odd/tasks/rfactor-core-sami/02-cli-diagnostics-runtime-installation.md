@@ -96,6 +96,8 @@ Use uv-managed Python as the initial bootstrap proposal, avoiding a prerequisite
 
 Each worker runtime receives the same SAMI contract/adapter version as the CLI coordinator. Launch it by absolute path, with a JSON request and explicit model/backend configuration. Reuse the worker per batch where feasible; do not load models per page or PDF unnecessarily.
 
+The heavy-inference backend is fixed by [06 — engine backend and GPU policy](06-engine-backend-and-gpu-policy.md): the `quality` VLM runs on local `llama.cpp` (GGUF), configured explicitly; Docker/vllm is prohibited so every mode runs on a machine without Docker (required for native Windows). `balanced` (RF-DETR) needs Torch but no inference server. The runtime manifest pins the GGUF identities, the `llama-server` build per OS (including the Windows binary), and the Torch wheel per accelerator.
+
 ### Installation state machine
 
 `planned → preparing → validating → ready`, with recoverable `failed`. Download tasks may run in a supervised background job, but the bootstrap waits for validation before announcing success.
@@ -118,6 +120,8 @@ For normal use, configure dependencies to use local models without automatic dow
 | GPU fails for a document in the batch | Use CPU for subsequent documents; do not retry GPU per document under the same condition. |
 | Invalid/encrypted PDF, output permissions, or full disk | Appropriate document/operation error; do not misclassify it as GPU failure. Continue other documents where appropriate. |
 
+VRAM scales the `quality` VLM `-ngl` offload (full ≥8 GB, partial 4–8 GB, `-ngl 0` on CPU), per [06 D3](06-engine-backend-and-gpu-policy.md); it never switches the public mode. The existing `sami/engines/marker.py:_resolve_mode()`, which downgrades to `fast` below 8 GB VRAM, contradicts "CPU in the same mode" above and must be replaced by this ladder.
+
 A GPU failure permits **one** CPU retry per document, not a CPU↔GPU loop. If CPU conversion succeeds, conversion exits 0 unless other errors/partials exist. The warning and effective device remain in the result. A failed attempt never replaces a previous output.
 
 Do not permanently disable a GPU because of temporary memory pressure; record reason and scope. Do not repeat the deep test every time the user invokes CLI either. Design recovery using component fingerprints and session state.
@@ -138,7 +142,7 @@ Test processes with fragmented stdout, abundant stderr, failure before/during in
 
 | Future entry point | Behavior |
 |---|---|
-| `install.sh` / `install.ps1` | Obtain CLI release `0.2.0`, verify assets, prepare Python/environments/all three modes, register location, configure `PATH`, and query health. |
+| `install.sh` / `install.ps1` | Obtain CLI release `0.2.0`, verify assets, prepare Python/environments/all three modes, register location, configure `PATH`, and query health. Each fetches the `llama-server` build for its OS (`install.ps1` the `llama-*-bin-win-*` binary, honoring `LLAMA_CPP_BINARY`) and the Torch wheel for the detected accelerator, per [06 D4](06-engine-backend-and-gpu-policy.md). |
 | `setup.sh` | Existing-installation compatibility; delegate preparation to the same flow. Do not retain a divergent runtime recipe. |
 | `sami setup` | Explicit preparation/repair entry point; may run deep diagnostics and download. |
 | Bootstrap `update` | Prepare the new version without destroying the previous one before validation. |

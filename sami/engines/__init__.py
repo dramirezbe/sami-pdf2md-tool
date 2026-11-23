@@ -37,6 +37,7 @@ def convert(
     stage_logger: Callable[..., Any] | None = None,
     stage_done_logger: Callable[..., Any] | None = None,
     converter: Any | None = None,
+    app_home: Any | None = None,
 ) -> EngineResult:
     """Import and run the adapter selected by the request's public mode."""
     selection = select_engine(request.mode)
@@ -53,4 +54,5 @@ def convert(
         stage_logger=stage_logger,
         stage_done_logger=stage_done_logger,
         converter=converter,
+        app_home=app_home,
     )

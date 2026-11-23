@@ -1,13 +1,24 @@
-"""Marker adapter retaining SAMI's existing conversion pipeline."""
+"""Marker adapter retaining SAMI's existing conversion pipeline.
+
+Backend policy (doc 06):
+- All heavy inference runs on local llama.cpp (GGUF).  Docker and vllm are
+  NEVER used.  _configure_vlm_backend() sets the required Surya/llama.cpp
+  environment before create_model_dict() so Marker/Surya never reach for them.
+- GPU offload is controlled by LLAMA_CPP_NGL, computed from free VRAM:
+    >= 8 GB free  → full offload  (-ngl -1 / all layers)
+    4–8 GB free   → partial       (-ngl 20)
+    < 4 GB / none → CPU           (-ngl 0)
+- The public mode (fast / balanced / quality) is NEVER changed by hardware.
+  Hardware only scales the VLM offload for the quality path.
+"""
 from __future__ import annotations
 
+import os
 import sys
 import time
 from pathlib import Path
 
 from sami.contracts import ConversionRequest, EngineResult
-
-MIN_VRAM_GB_FOR_VLM = 8
 
 
 def _count_blocks_by_type(document) -> dict[str, int]:
@@ -174,30 +185,79 @@ def _make_verbose_converter_cls(stage_logger, stage_done_logger):
     return VerboseConverter
 
 
-def _gpu_vram_gb() -> float | None:
-    """Return total VRAM in GiB for the default CUDA device, or None."""
-    try:
-        import torch
-        if torch.cuda.is_available():
-            return torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
-    except Exception:
-        pass
-    return None
+def _locate_gguf_paths(app_home: Path | None) -> tuple[str | None, str | None]:
+    """Locate surya GGUF and mmproj files in SAMI_HOME or the standard HF cache.
+
+    Returns (gguf_path, mmproj_path); either may be None if not found.
+    Env overrides SURYA_GGUF_LOCAL_MODEL_PATH / SURYA_GGUF_LOCAL_MMPROJ_PATH
+    take priority so users can point to custom paths.
+    """
+    gguf = os.environ.get("SURYA_GGUF_LOCAL_MODEL_PATH")
+    mmproj = os.environ.get("SURYA_GGUF_LOCAL_MMPROJ_PATH")
+    if gguf and mmproj:
+        return gguf, mmproj
+
+    # Standard HF hub cache: models--datalab-to--surya-ocr-2-gguf
+    hf_home = Path(os.environ.get("HF_HOME", Path.home() / ".sami" / "cache" / "huggingface"))
+    hub = hf_home / "hub" / "models--datalab-to--surya-ocr-2-gguf"
+
+    if app_home:
+        candidates = [hub, app_home / "cache" / "huggingface" / "hub" / "models--datalab-to--surya-ocr-2-gguf"]
+    else:
+        candidates = [hub]
+
+    for base in candidates:
+        snapshots = base / "snapshots"
+        if not snapshots.is_dir():
+            continue
+        for snap in sorted(snapshots.iterdir(), reverse=True):
+            g = snap / "surya-2.gguf"
+            m = snap / "surya-2-mmproj.gguf"
+            if g.is_file() and m.is_file():
+                return str(g), str(m)
+
+    return None, None
 
 
-def _resolve_mode(mode: str | None, logger) -> str | None:
-    """Auto-select fast mode when GPU VRAM is too small for VLM."""
-    if mode is not None:
-        return mode
-    vram = _gpu_vram_gb()
-    if vram is not None and vram < MIN_VRAM_GB_FOR_VLM:
-        logger(f"GPU VRAM: {vram:.1f} GB (< {MIN_VRAM_GB_FOR_VLM} GB minimum for VLM)")
-        logger("Auto-selecting --mode fast (RF-DETR layout)")
-        return "fast"
-    return None
+def _configure_vlm_backend(ngl: int, ngl_tier: str, logger, app_home: Path | None) -> None:
+    """Set env vars so Marker/Surya uses local llama.cpp, never Docker/vllm.
+
+    Must be called BEFORE create_model_dict().  Idempotent: safe to call
+    multiple times; existing explicit overrides are preserved.
+
+    Args:
+        ngl:      layer count for llama.cpp (-1 = all layers, 0 = CPU)
+        ngl_tier: "full" | "partial" | "cpu" — used for log messages
+        logger:   callable for progress messages
+        app_home: SAMI home dir for locating GGUF files, or None
+    """
+    # 1. Force llamacpp backend — Surya will not attempt vllm or Docker
+    os.environ.setdefault("SURYA_INFERENCE_BACKEND", "llamacpp")
+
+    # 2. Set the -ngl value (overwrite because hardware may have changed)
+    ngl_str = str(ngl if ngl >= 0 else 999)  # 999 = "all layers" for llama-server
+    os.environ["LLAMA_CPP_NGL"] = ngl_str
+
+    # 3. Point Surya at local GGUF files if available
+    gguf, mmproj = _locate_gguf_paths(app_home)
+    if gguf:
+        os.environ.setdefault("SURYA_GGUF_LOCAL_MODEL_PATH", gguf)
+    if mmproj:
+        os.environ.setdefault("SURYA_GGUF_LOCAL_MMPROJ_PATH", mmproj)
+
+    # 4. Log the offload decision
+    if ngl_tier == "full":
+        logger("VLM backend: llama.cpp, full GPU offload")
+    elif ngl_tier == "partial":
+        logger(f"VLM backend: llama.cpp, partial GPU offload (-ngl {ngl}) — VRAM 4–8 GB")
+    else:
+        logger("VLM backend: llama.cpp, CPU inference (-ngl 0) — no usable GPU")
+
+    if not gguf:
+        logger("  WARNING: surya-2.gguf not found in cache; Surya will attempt download")
 
 
-def build_converter(mode: str | None, *, cpu_config, logger, stage_logger, stage_done_logger):
+def build_converter(mode: str | None, *, cpu_config, logger, stage_logger, stage_done_logger, app_home: Path | None = None):
     """Construct a Marker PDF->Markdown converter with verbose logging."""
     try:
         from marker.models import create_model_dict
@@ -213,7 +273,15 @@ def build_converter(mode: str | None, *, cpu_config, logger, stage_logger, stage
     import torch
     torch.set_num_threads(cpu_config["torch_threads"])
 
-    mode = _resolve_mode(mode, logger)
+    # For the quality VLM path (Marker internal mode "balanced"), configure
+    # llama.cpp backend before loading models.  balanced (RF-DETR) uses Torch
+    # directly — no inference server, no VLM backend config needed.
+    if mode == "balanced":
+        from sami.hardware import gpu_info
+        info = gpu_info()
+        vram_free_str = f"{info['vram_free_gb']:.1f} GB" if info["vram_free_gb"] is not None else "unknown"
+        logger(f"GPU: {info['physical_gpu'] or 'none'} — VRAM free {vram_free_str}")
+        _configure_vlm_backend(info["ngl"], info["ngl_tier"], logger, app_home)
 
     cli: dict = {
         "output_format": "markdown",
@@ -229,7 +297,7 @@ def build_converter(mode: str | None, *, cpu_config, logger, stage_logger, stage
     t0 = time.monotonic()
     model_dict = create_model_dict()
     logger(f"Models loaded in {time.monotonic() - t0:.1f}s")
-    logger(f"Mode: {mode or 'auto'}")
+    logger(f"Mode: {mode or 'auto (RF-DETR)'}")
 
     VerboseConverter = _make_verbose_converter_cls(stage_logger, stage_done_logger)
     return VerboseConverter(
@@ -266,6 +334,7 @@ def convert(
     stage_logger,
     stage_done_logger,
     converter=None,
+    app_home: Path | None = None,
 ) -> EngineResult:
     """Run SAMI's original Marker pipeline into the request staging directory."""
     from marker.output import text_from_rendered
@@ -279,6 +348,7 @@ def convert(
             logger=logger,
             stage_logger=stage_logger,
             stage_done_logger=stage_done_logger,
+            app_home=app_home,
         )
     rendered = converter(str(request.input_path), pdf_name=request.input_path.name)
     markdown, _extension, images = text_from_rendered(rendered)
