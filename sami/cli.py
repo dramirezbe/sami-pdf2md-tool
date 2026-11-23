@@ -43,6 +43,7 @@ from sami.contracts import (
     RunResult,
 )
 from sami.events import EventSequencer
+from sami.outputs import make_staging_dir, prepend_frontmatter, publish, reserve_stem
 
 VALID_MODES = ("fast", "balanced", "quality")
 
@@ -538,6 +539,90 @@ def convert_pdf(
 
 
 # ---------------------------------------------------------------------------
+# Health subcommand
+# ---------------------------------------------------------------------------
+
+def _health_command(argv: list[str]) -> int:
+    """Implement `sami health [--json]`.
+
+    Reads ~/.sami/compatibility.json if present and performs lightweight
+    path checks (< 1 s, no Torch/model loading).  Emits one JSON object to
+    stdout if --json; otherwise prints a human-readable summary.
+
+    Exit codes: 0 = ready/degraded, 3 = repair_required.
+    """
+    import json as _json
+    emit_json = "--json" in argv
+
+    app_home = Path(os.environ.get("SAMI_HOME", Path.home() / ".sami"))
+    llama_bin = (
+        Path(os.environ["LLAMA_CPP_BINARY"])
+        if os.environ.get("LLAMA_CPP_BINARY")
+        else app_home / "bin" / "llama-server"
+    )
+    # Windows: also try .exe suffix
+    if not llama_bin.is_file() and sys.platform == "win32":
+        llama_bin = app_home / "bin" / "llama-server.exe"
+    llama_ok = llama_bin.is_file() or bool(shutil.which("llama-server"))
+
+    hf_cache = Path(os.environ.get("HF_HOME", app_home / "cache" / "huggingface"))
+
+    from sami import __version__
+
+    warnings: list[str] = []
+    repair_reasons: list[str] = []
+
+    # Check llama-server for quality mode
+    if not llama_ok:
+        warnings.append("llama-server not found — quality mode will attempt download on first use")
+
+    # Check HF cache directory
+    if not hf_cache.is_dir():
+        warnings.append(f"HF cache missing: {hf_cache}")
+
+    # Determine status
+    if repair_reasons:
+        status = "repair_required"
+    elif warnings:
+        status = "degraded"
+    else:
+        status = "ready"
+
+    result = {
+        "protocol_version": 1,
+        "cli_version": __version__,
+        "status": status,
+        "modes": {
+            "fast":     {"available": True,     "device": "cpu", "inference_server": False},
+            "balanced": {"available": True,     "device": "cpu", "inference_server": False},
+            "quality":  {"available": llama_ok, "device": "cpu", "inference_server": True,
+                         "note": "GPU offload scaled by VRAM at runtime"},
+        },
+        "paths": {
+            "sami_home":    str(app_home),
+            "llama_server": str(llama_bin) if llama_ok else None,
+            "hf_cache":     str(hf_cache),
+        },
+        "warnings": warnings,
+        "repair_reasons": repair_reasons,
+    }
+
+    if emit_json:
+        print(_json.dumps(result), flush=True)
+    else:
+        print(f"sami {__version__} — {status.upper()}")
+        print(f"  SAMI_HOME:    {app_home}")
+        print(f"  llama-server: {'OK' if llama_ok else 'MISSING (quality mode will download on first use)'}")
+        print(f"  HF cache:     {'OK' if hf_cache.is_dir() else 'MISSING'}")
+        for w in warnings:
+            print(f"  WARNING: {w}")
+        for r in repair_reasons:
+            print(f"  REPAIR: {r}")
+
+    return 3 if status == "repair_required" else 0
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -562,6 +647,12 @@ def _effective_device(engine: str) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     global _QUIET, _JSON_MODE, _ACTIVE_PROGRESS_CALLBACK
+
+    # Dispatch subcommands before building the main parser.
+    raw_argv = argv if argv is not None else sys.argv[1:]
+    if raw_argv and raw_argv[0] == "health":
+        return _health_command(raw_argv[1:])
+
     parser = argparse.ArgumentParser(
         prog="sami",
         description="Convert PDF files to Markdown with extracted figures.",
@@ -617,7 +708,7 @@ def main(argv: list[str] | None = None) -> int:
     mode = args.mode
     selection = select_engine(mode)
     with contextlib.redirect_stdout(sys.stderr if args.json else sys.stdout):
-        ensure_app_home(require_llama_server=selection.engine == "marker")
+        app_home = ensure_app_home(require_llama_server=selection.engine == "marker")
     _install_signal_handlers()
     os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
     cpu_config = _configure_cpu()
@@ -649,6 +740,7 @@ def main(argv: list[str] | None = None) -> int:
                     logger=log,
                     stage_logger=_marker_stage_logger,
                     stage_done_logger=_marker_stage_done,
+                    app_home=app_home,
                 )
             _CHILD_PIDS.update(_collect_llama_pids())
         except (Exception, SystemExit) as exc:
@@ -683,14 +775,21 @@ def main(argv: list[str] | None = None) -> int:
             return code
 
     results: list[JobResult] = []
+    # Track the active job so KeyboardInterrupt can emit a terminal event.
+    _active_job_id: str | None = None
+    _active_job_started: float | None = None
+    _claimed_stems: set[str] = set()
+
     try:
         for i, pdf in enumerate(pdfs, 1):
             job_id = uuid.uuid4().hex
+            _active_job_id = job_id
+            _active_job_started = None
             if len(pdfs) > 1:
                 log(f"\n[{i}/{len(pdfs)}]")
             out_dir = Path(args.output).resolve() if args.output else pdf.parent
-            destination = out_dir if args.flat else out_dir / pdf.stem
             started = time.monotonic()
+            _active_job_started = started
             staging: Path | None = None
             emit("job_started", {
                 "input": str(pdf), "index": i, "total": len(pdfs),
@@ -707,7 +806,10 @@ def main(argv: list[str] | None = None) -> int:
 
             try:
                 out_dir.mkdir(parents=True, exist_ok=True)
-                staging = Path(tempfile.mkdtemp(prefix=f".{pdf.stem}-pdf2md-", dir=out_dir))
+                # Reserve output identity before staging so another concurrent
+                # sami process doesn't claim the same stem.
+                stem = reserve_stem(pdf, out_dir, args.flat, claimed=_claimed_stems)
+                staging = make_staging_dir(out_dir, stem)
                 request = ConversionRequest(
                     job_id=job_id,
                     input_path=pdf,
@@ -726,14 +828,20 @@ def main(argv: list[str] | None = None) -> int:
                         stage_logger=stage_progress if selection.engine == "marker" else None,
                         stage_done_logger=stage_done if selection.engine == "marker" else None,
                         converter=converter,
+                        app_home=app_home,
                     )
-                staging.mkdir(parents=True, exist_ok=True)
-                md_name = f"{pdf.stem}.md"
-                markdown_path = staging / md_name
-                markdown_path.write_text(engine_result.markdown, encoding="utf-8")
-                destination.mkdir(parents=True, exist_ok=True)
-                for produced in sorted(staging.iterdir()):
-                    shutil.move(str(produced), str(destination / produced.name))
+                # Write markdown with sami front-matter into staging.
+                from sami import __version__ as _ver
+                md_name = f"{stem}.md"
+                markdown_with_fm = prepend_frontmatter(
+                    engine_result.markdown, source=pdf, version=_ver
+                )
+                (staging / md_name).write_text(markdown_with_fm, encoding="utf-8")
+                # Publish atomically.
+                pub = publish(staging, stem, out_dir, args.flat)
+                md_path: Path = pub["md_path"]
+                resource_paths: list[Path] = pub["resource_paths"]
+                staging = None  # published; don't remove in finally
                 status = "partial" if engine_result.gaps else "succeeded"
                 result = JobResult(
                     job_id=job_id,
@@ -742,10 +850,7 @@ def main(argv: list[str] | None = None) -> int:
                     engine=selection.engine,
                     device=effective_device,
                     status=status,
-                    output_paths=(
-                        destination / md_name,
-                        *(destination / resource for resource in engine_result.resources),
-                    ),
+                    output_paths=(md_path, *resource_paths),
                     warnings=engine_result.warnings,
                     duration_seconds=time.monotonic() - started,
                     attempts=1,
@@ -754,7 +859,7 @@ def main(argv: list[str] | None = None) -> int:
                     emit("warning", warning, job_id=job_id, attempt=1)
                 results.append(result)
                 emit("job_finished", {"result": result.to_wire()}, job_id=job_id, attempt=1)
-                log(f"  [{pdf.name}] Done: {engine_result.processed_pages} pages → {destination / md_name}")
+                log(f"  [{pdf.name}] Done: {engine_result.processed_pages} pages → {md_path}")
             except Exception as exc:
                 print(f"FAILED: {pdf.name}: {exc}", file=sys.stderr)
                 result = JobResult(
@@ -771,17 +876,32 @@ def main(argv: list[str] | None = None) -> int:
                 emit("job_finished", {"result": result.to_wire()}, job_id=job_id, attempt=1)
             finally:
                 _ACTIVE_PROGRESS_CALLBACK = None
+                _active_job_id = None
                 if staging is not None:
                     shutil.rmtree(staging, ignore_errors=True)
     except KeyboardInterrupt:
         print("\n[cleanup] Interrupted by user", file=sys.stderr)
+        # Emit a cancelled terminal event for the job that was interrupted
+        # so JSONL consumers always get a terminal event per job.
+        if _active_job_id is not None:
+            cancelled_result = JobResult(
+                job_id=_active_job_id,
+                input_path=pdfs[len(results)],
+                mode=mode,
+                engine=selection.engine,
+                device=effective_device,
+                status="cancelled",
+                duration_seconds=time.monotonic() - (_active_job_started or total_t0),
+            )
+            results.append(cancelled_result)
+            emit("job_finished", {"result": cancelled_result.to_wire()},
+                 job_id=_active_job_id, attempt=1)
         _cleanup_all()
         exit_code = 130
     except BaseException:
         _cleanup_all()
         raise
     finally:
-        # Always attempt graceful cleanup of inference servers
         _cleanup_all()
 
     total_elapsed = time.monotonic() - total_t0

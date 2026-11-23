@@ -1,0 +1,47 @@
+{
+  "schema_version": "1",
+  "sami_version": "0.2.0",
+  "python": {
+    "required": ">=3.11,<3.14",
+    "pinned": "3.12.13",
+    "installer": "uv"
+  },
+  "llama_server": {
+    "repo": "ggml-org/llama.cpp",
+    "note": "Fetched from GitHub releases. Use latest stable build matching each platform suffix.",
+    "platforms": {
+      "linux-x64":    { "suffix": "-bin-ubuntu-x64.tar.gz",         "binary": "llama-server",     "format": "tgz" },
+      "linux-arm64":  { "suffix": "-bin-ubuntu-arm64.tar.gz",        "binary": "llama-server",     "format": "tgz" },
+      "win-x64":      { "suffix": "-bin-win-llama-server-x64.zip",   "binary": "llama-server.exe", "format": "zip" },
+      "win-arm64":    { "suffix": "-bin-win-llama-server-arm64.zip",  "binary": "llama-server.exe", "format": "zip" },
+      "macos-arm64":  { "suffix": "-bin-macos-arm64.tar.gz",         "binary": "llama-server",     "format": "tgz" },
+      "macos-x64":    { "suffix": "-bin-macos-x64.tar.gz",           "binary": "llama-server",     "format": "tgz" }
+    }
+  },
+  "surya_gguf": {
+    "repo": "datalab-to/surya-ocr-2-gguf",
+    "revision": "6a3a4c30e5e74446d4f8b6afd05b2f2da970f470",
+    "files": {
+      "model":  "surya-2.gguf",
+      "mmproj": "surya-2-mmproj.gguf"
+    },
+    "note": "Required for quality mode (VLM layout). Revision verified in U00 evidence on 2026-11-18."
+  },
+  "torch": {
+    "version": ">=2.1",
+    "note": "Install the CUDA-enabled wheel when a compatible GPU is detected; CPU wheel otherwise. The installer must not let a generic resolver swap one for the other.",
+    "cuda_index_url": "https://download.pytorch.org/whl/cu121",
+    "cpu_index_url":  "https://download.pytorch.org/whl/cpu"
+  },
+  "marker": {
+    "package": "marker-pdf",
+    "version": "2.0.0",
+    "note": "Pinned. Do not upgrade silently."
+  },
+  "modes": {
+    "fast":     { "engine": "caste",  "inference_server": false, "gpu_required": false },
+    "balanced": { "engine": "marker", "inference_server": false, "gpu_required": false, "marker_mode": "fast"     },
+    "quality":  { "engine": "marker", "inference_server": true,  "gpu_required": false, "marker_mode": "balanced",
+                  "note": "inference_server=true means llama-server is used. gpu_required=false: works on CPU with -ngl 0." }
+  }
+}
