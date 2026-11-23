@@ -17,7 +17,7 @@ A tested public contract and two engine adapters producing results comparable to
 | `sami/contracts.py` | Request, options, result, recovered references, and typed errors. Simple dataclasses/schemas. |
 | `sami/events.py` | Protocol 1 envelope and serialization; JSONL stdout independent of logging. |
 | `sami/engines/marker.py` | Move `VerboseConverter`, document construction/rendering, and figure writing from the current integration without changing content logic. |
-| `sami/engines/fast.py` | Extract the necessary Caste functions and configure the effective batch path. |
+| `sami/engines/fast.py` | Extract the necessary fast-engine functions and configure the effective batch path. |
 | `sami/engines/__init__.py` | Select the adapter through the mode table; deferred imports. |
 | `sami/outputs.py` | Reserve identity, stage, number, and publish without overwriting outputs. |
 | `sami/validation.py` | Partial states, gaps, and consistency, separate from transformations. |
@@ -28,7 +28,7 @@ A tested public contract and two engine adapters producing results comparable to
 
 1. Record the SHA, resolved Marker/Surya/Torch versions, and models in the reference installation. The project pins Marker `2.0.0`; do not silently upgrade it while moving functions.
 2. Convert both existing PDFs with both current modes, retaining references through `--no-strip-refs`. Save results and metrics outside the source tree; define small expectations for text, figures, tables, and equations.
-3. Measure the Caste batch with `high/ocr=False/images=False`, separating conversion from its later random audit. Measure startup and steady conversion separately on the same PDFs/machine.
+3. Measure the fast engine's batch with `high/ocr=False/images=False`, separating conversion from its later random audit. Measure startup and steady conversion separately on the same PDFs/machine.
 4. Test an actual CPU path for both Marker profiles on Windows 11 and a chosen Debian/Ubuntu baseline. Confirm the server binary, dependencies, and that models can remain entirely local. The `fast` engine does not need that inference.
 5. Record an `OS/architecture/driver/runtime/model/engine → tested/untested/unsupported` matrix and RAM limits. Initially propose x86_64; establish minimum versions from evidence, not the distribution name.
 
@@ -40,11 +40,11 @@ A tested public contract and two engine adapters producing results comparable to
 
 | Public mode | Implementation | Default |
 |---|---|---|
-| `fast` | Caste with its internal `high` configuration, OCR and images off. | No. |
+| `fast` | The fast engine with its internal `high` configuration, OCR and images off. | No. |
 | `balanced` | SAMI/Marker with internal mode `fast`. | Yes. |
 | `quality` | SAMI/Marker with internal mode `balanced`. | No. |
 
-Move the required conversion functions and subclassing from `sami/cli.py` to the adapter. Preserve provider → document → layout → lines → highres → OCR → structure → processors → rendering order. Replace progress `print` calls with callbacks; do not change algorithms or postprocess its prose with Caste heuristics.
+Move the required conversion functions and subclassing from `sami/cli.py` to the adapter. Preserve provider → document → layout → lines → highres → OCR → structure → processors → rendering order. Replace progress `print` calls with callbacks; do not change algorithms or postprocess its prose with fast-engine heuristics.
 
 **Backend and device per mode are fixed by [06 — engine backend and GPU policy](06-engine-backend-and-gpu-policy.md):** `balanced` uses RF-DETR on Torch with **no** inference server; `quality` uses the VLM on local `llama.cpp` (GGUF), configured explicitly so Marker/Surya never reach for Docker/vllm. The adapter must set the llama.cpp backend and local GGUF paths before `create_model_dict()`. Do not auto-switch the public mode based on VRAM (see D3): hardware only scales the `quality` offload.
 
@@ -101,13 +101,13 @@ For UI control, propose `--control-stdin`: it receives JSON lines such as the fo
 - `import sami.cli`, help, and version do not download, import Torch/Marker, or register global handlers incompatible with Windows.
 - JSONL stdout remains parseable even if a dependency prints logs; errors and cancellation produce consistent terminal output.
 
-**Rollback:** revert contract/adapter together; do not change user documents or the Caste reference.
+**Rollback:** revert contract/adapter together; do not change user documents or the reference extraction code.
 
 ## U02 — Fast engine, references, and shared outputs
 
-### Effective Caste configuration
+### Effective fast-engine configuration
 
-Extract useful `Options`, normalization, layout, prose, tables, extraction, and QC from [the reference](../refactor-core-sami/PDF2MD_caste.py). Preserve its actual invocation, not its nominal `fast` preset: `high`, `ocr=False`, `images=False`, `markers=True`, `pipe` tables, and no default page limit.
+Extract useful `Options`, normalization, layout, prose, tables, extraction, and QC from the removed reference extraction code. Preserve its actual invocation, not its nominal `fast` preset: `high`, `ocr=False`, `images=False`, `markers=True`, `pipe` tables, and no default page limit.
 
 Do not import the converted notebook file: it contains global execution. Do not run pip/apt, Tesseract, reactive OCR, random auditing, model detection, or downloads during conversion. Preserve its `run` consistency checks within the separated responsibilities; do not add a second heavy extraction to suggest independent verification.
 
@@ -117,7 +117,7 @@ For scans without text: emit a warning/gap and `partial`; do not invent content 
 
 1. Retain all bibliography extracted by the engine; disable SAMI's own reference removal.
 2. Preserve URL/DOI destinations already in the text and recoverable PDF annotations. Use inline Markdown links, never an external bibliography file.
-3. In Caste, reuse extracted coordinates/spans to associate links with text. Do not blindly match globally and link the first repeated word on the page.
+3. In the fast engine, reuse extracted coordinates/spans to associate links with text. Do not blindly match globally and link the first repeated word on the page.
 4. If an annotation has a URL but cannot be inserted unambiguously at its position, preserve it in a recovered-links section inside the same `.md`, with the available page/label and a warning. Do not invent a citation–bibliography relationship.
 5. Represent internal destinations with anchors if the target page/section exists in the output; otherwise record the limitation. Do not query the network to complete titles or DOIs.
 
@@ -139,9 +139,9 @@ Do not create an empty final directory at startup that looks like a valid conver
 
 ### U02 tests and completion
 
-- Caste tables and columns contain expected content; scans with OCR off finish partial without loading OCR.
+- Fast-engine tables and columns contain expected content; scans with OCR off finish partial without loading OCR.
 - Bibliography and text/annotation links in both engines; repeated reference, ambiguous link association, and missing internal destination.
 - Normal/flat output, second attempt, matching names, Unicode, and injected failure between resources and Markdown: previous output intact, cleanup limited to the current attempt.
-- Compare Caste latency before/after in the same environment, excluding auditing and model startup.
+- Compare the fast engine's latency before/after in the same environment, excluding auditing and model startup.
 
 **Completion:** preserved engines, verifiable v1 contract, and safe outputs. **Rollback:** remove U02 without deleting published results; a format migration never deletes documents.

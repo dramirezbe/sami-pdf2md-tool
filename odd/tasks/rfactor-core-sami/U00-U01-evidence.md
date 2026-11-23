@@ -27,7 +27,7 @@ The first run downloaded the 259 MiB OCR error model. The later CPU comparisons 
 
 ## Backend startup and CPU verification
 
-The initial legacy Marker fast run of `test_document.pdf`, with normal CUDA visibility, completed in 15.7 seconds (five pages, 31 layout blocks, five figures, 3.4 KB Markdown). This is a Marker fast result, not Caste. The first legacy fast run on `radio_env_5pages.pdf` reached `LLMTableProcessor` and stalled while attempting `docker run vllm/vllm-openai:v0.20.1`; `docker image inspect vllm/vllm-openai:v0.20.1` found no local image. This run was interrupted after a bounded wait. A subsequent run with downloaded models still tried the VLM server. Logs from the early attempt are in the session's runtime logs; the successful repeat comparisons below used an explicitly configured local llama.cpp backend.
+The initial legacy Marker fast run of `test_document.pdf`, with normal CUDA visibility, completed in 15.7 seconds (five pages, 31 layout blocks, five figures, 3.4 KB Markdown). This is a Marker fast result, not the fast engine. The first legacy fast run on `radio_env_5pages.pdf` reached `LLMTableProcessor` and stalled while attempting `docker run vllm/vllm-openai:v0.20.1`; `docker image inspect vllm/vllm-openai:v0.20.1` found no local image. This run was interrupted after a bounded wait. A subsequent run with downloaded models still tried the VLM server. Logs from the early attempt are in the session's runtime logs; the successful repeat comparisons below used an explicitly configured local llama.cpp backend.
 
 CPU run environment (paths shown exactly as used):
 
@@ -71,14 +71,14 @@ The legacy checkout was materialized without creating a Git branch using `git ar
 
 Logs and Markdown/figure artifacts are under `/tmp/sami-runtime-evidence/{legacy-source-fast,legacy-source-balanced,cpu-fast-test_document,cpu-fast-radio,cpu-balanced-test_document,cpu-balanced-radio}`. Per-run logs have matching directory names with `.log` suffix. These results show adapter preservation on this two-file corpus; they are not a content-quality study.
 
-## Caste fast comparison
+## Fast engine comparison
 
-The extracted Caste adapter ran its declared profile `quality=high, ocr=false, images=false, markers=true, table_style=pipe, max_pages=None` on the same two PDFs, in the same `.venv`. Artifacts and `run-summary.txt` are in `/tmp/sami-runtime-evidence/caste-results`.
+The extracted fast-engine adapter ran its declared profile `quality=high, ocr=false, images=false, markers=true, table_style=pipe, max_pages=None` on the same two PDFs, in the same `.venv`. Artifacts and `run-summary.txt` are in `/tmp/sami-runtime-evidence/fast-results`.
 
 - `test_document.pdf`: 5 pages; adapter elapsed 0.080 s (conversion before output file write); 2,805 Markdown bytes; SHA-256 `43ec7cf4628543a20f21eeb5a8df8d99f560c29166f8101b3c66af962e7cff66`; five tables, no images, 15 warnings.
 - `radio_env_5pages.pdf`: 5 pages; adapter elapsed 1.304 s (conversion before output file write); 24,623 Markdown bytes; SHA-256 `911000fb44eeaec257ae4b44e5004e522ed89f54f327719b12d210834f80052a`; no tables or images detected, nine warnings.
 
-These timings exclude output writing and are not directly comparable with end-to-end CLI totals. Caste produced materially different output; no claim of equivalent content quality is made. The old 15.7-second result is Marker fast and is not Caste performance evidence.
+These timings exclude output writing and are not directly comparable with end-to-end CLI totals. The fast engine produced materially different output; no claim of equivalent content quality is made. The old 15.7-second result is Marker fast and is not fast-engine performance evidence.
 
 ## Automated checks and current implementation
 
@@ -96,17 +96,17 @@ Framing boundary: `Event.to_json_line()` emits one JSON record without a line te
 
 ## Public CLI integration added after the baseline runs
 
-The CLI maps `fast` to Caste, `balanced` to Marker internal `fast`, and `quality` to Marker internal `balanced`; default is `balanced`. Its effective device field reports Caste as CPU and accounts for explicit Torch/detector settings and llama.cpp layer offload. It creates a `ConversionRequest` per unique resolved input, adapts `EngineResult` into a `JobResult`, and emits `run_started`, `inputs_resolved`, `job_started`, Marker `job_progress`, warnings, `job_finished`, and `run_finished` events. In `--json` mode dependency stdout is redirected to stderr and events use the original stdout stream. `--no-strip-refs` remains accepted but reference stripping is no longer applied. Caste fast startup skips llama-server provisioning.
+The CLI maps `fast` to the fast engine, `balanced` to Marker internal `fast`, and `quality` to Marker internal `balanced`; default is `balanced`. Its effective device field reports the fast engine as CPU and accounts for explicit Torch/detector settings and llama.cpp layer offload. It creates a `ConversionRequest` per unique resolved input, adapts `EngineResult` into a `JobResult`, and emits `run_started`, `inputs_resolved`, `job_started`, Marker `job_progress`, warnings, `job_finished`, and `run_finished` events. In `--json` mode dependency stdout is redirected to stderr and events use the original stdout stream. `--no-strip-refs` remains accepted but reference stripping is no longer applied. The fast engine's startup skips llama-server provisioning.
 
-`tests/test_cli_json.py` mocks the engine and checks deduplication, no llama provisioning for Caste, backend-aware effective device, output publication, Unicode, increasing sequence numbers, JSON-only stdout, and dependency chatter redirected to stderr. Actual CLI integration runs used the CPU environment with 60/90/240 second timeouts:
+`tests/test_cli_json.py` mocks the engine and checks deduplication, no llama provisioning for the fast engine, backend-aware effective device, output publication, Unicode, increasing sequence numbers, JSON-only stdout, and dependency chatter redirected to stderr. Actual CLI integration runs used the CPU environment with 60/90/240 second timeouts:
 
 ```sh
-timeout 60s env HOME=/tmp/sami-runtime-evidence/cpu-home SAMI_HOME=/tmp/sami-runtime-evidence/cpu-home/.sami HF_HOME=/home/javastral/.sami/cache/huggingface HF_HUB_CACHE=/home/javastral/.sami/cache/huggingface/hub MODEL_CACHE_DIR=/home/javastral/.cache/datalab/models LLAMA_CPP_BINARY=/home/javastral/.sami/bin/llama-server TORCH_DEVICE=cpu CUDA_VISIBLE_DEVICES= .venv/bin/python -m sami.cli --mode fast --json --output /tmp/sami-runtime-evidence/cli-json-caste-verified test-pdfs/test_document.pdf
+timeout 60s env HOME=/tmp/sami-runtime-evidence/cpu-home SAMI_HOME=/tmp/sami-runtime-evidence/cpu-home/.sami HF_HOME=/home/javastral/.sami/cache/huggingface HF_HUB_CACHE=/home/javastral/.sami/cache/huggingface/hub MODEL_CACHE_DIR=/home/javastral/.cache/datalab/models LLAMA_CPP_BINARY=/home/javastral/.sami/bin/llama-server TORCH_DEVICE=cpu CUDA_VISIBLE_DEVICES= .venv/bin/python -m sami.cli --mode fast --json --output /tmp/sami-runtime-evidence/cli-json-fast-verified test-pdfs/test_document.pdf
 timeout 90s env HOME=/tmp/sami-runtime-evidence/cpu-home SAMI_HOME=/tmp/sami-runtime-evidence/cpu-home/.sami HF_HOME=/home/javastral/.sami/cache/huggingface HF_HUB_CACHE=/home/javastral/.sami/cache/huggingface/hub MODEL_CACHE_DIR=/home/javastral/.cache/datalab/models LLAMA_CPP_BINARY=/home/javastral/.sami/bin/llama-server TORCH_DEVICE=cpu FAST_DETECTOR_DEVICE=cpu SURYA_INFERENCE_BACKEND=llamacpp LLAMA_CPP_NGL=0 SURYA_INFERENCE_PARALLEL=1 CUDA_VISIBLE_DEVICES= .venv/bin/python -m sami.cli --mode balanced --json --output /tmp/sami-runtime-evidence/cli-json-balanced test-pdfs/test_document.pdf
 timeout 240s env HOME=/tmp/sami-runtime-evidence/cpu-home SAMI_HOME=/tmp/sami-runtime-evidence/cpu-home/.sami HF_HOME=/home/javastral/.sami/cache/huggingface HF_HUB_CACHE=/home/javastral/.sami/cache/huggingface/hub MODEL_CACHE_DIR=/home/javastral/.cache/datalab/models LLAMA_CPP_BINARY=/home/javastral/.sami/bin/llama-server TORCH_DEVICE=cpu FAST_DETECTOR_DEVICE=cpu SURYA_INFERENCE_BACKEND=llamacpp LLAMA_CPP_NGL=0 SURYA_INFERENCE_PARALLEL=1 CUDA_VISIBLE_DEVICES= .venv/bin/python -m sami.cli --mode quality --json --output /tmp/sami-runtime-evidence/cli-json-quality test-pdfs/test_document.pdf
 ```
 
-All runs exited 0 and wrote five-page outputs. Fast took about 0.17 s and emitted 20 valid events. Balanced took 12.2 s total, emitted 41 valid events including 36 `job_progress` events, and matched legacy Marker fast byte-for-byte (Markdown SHA-256 `7c2fbc09f7232d2d232d3d6687b4be6d6f56d71f846a509303e8e00b7d6a45c8`). Quality took 174.3 s total and matched legacy Marker balanced byte-for-byte (SHA-256 `85ff0017783691504268add3c9e7098bd106f9222eb9640d2809e2ae7f68dec3`). Quality ran before the progress-relay fix; balanced was rerun after it to verify stage events. Artifacts are under `/tmp/sami-runtime-evidence/cli-json-{caste-verified,balanced,quality}`. Captured streams are `/tmp/sami-runtime-evidence/cli-json-caste.stdout.jsonl`, `cli-json-caste.stderr.log`, `cli-json-balanced.stdout.jsonl`, `cli-json-balanced.stderr.log`, `cli-json-quality.stdout.jsonl`, and `cli-json-quality.stderr.log`.
+All runs exited 0 and wrote five-page outputs. Fast took about 0.17 s and emitted 20 valid events. Balanced took 12.2 s total, emitted 41 valid events including 36 `job_progress` events, and matched legacy Marker fast byte-for-byte (Markdown SHA-256 `7c2fbc09f7232d2d232d3d6687b4be6d6f56d71f846a509303e8e00b7d6a45c8`). Quality took 174.3 s total and matched legacy Marker balanced byte-for-byte (SHA-256 `85ff0017783691504268add3c9e7098bd106f9222eb9640d2809e2ae7f68dec3`). Quality ran before the progress-relay fix; balanced was rerun after it to verify stage events. Artifacts are under `/tmp/sami-runtime-evidence/cli-json-{fast-verified,balanced,quality}`. Captured streams are `/tmp/sami-runtime-evidence/cli-json-fast.stdout.jsonl`, `cli-json-fast.stderr.log`, `cli-json-balanced.stdout.jsonl`, `cli-json-balanced.stderr.log`, `cli-json-quality.stdout.jsonl`, and `cli-json-quality.stderr.log`.
 
 ## Remaining acceptance gaps and next actions
 
@@ -115,7 +115,7 @@ All runs exited 0 and wrote five-page outputs. Fast took about 0.17 s and emitte
 - Native Windows 11 CPU conversion and inference-server evidence. WSL is not evidence of native Windows support.
 - Testing on defined Debian/Ubuntu releases with an explicit platform/architecture/backend matrix.
 - Clean-cache startup, complete model-download behavior, readiness timing, and RAM limits. The successful warm-cache reruns do not establish this.
-- Broader corpus/content review for figures, tables, equations, references/links, and scans. Preserve different expectations for Caste and Marker; byte parity on two PDFs is not a quality study.
+- Broader corpus/content review for figures, tables, equations, references/links, and scans. Preserve different expectations for the fast engine and Marker; byte parity on two PDFs is not a quality study.
 - Complete inference-service startup and failure-path evidence, including failed downloads/readiness, timeouts, process cleanup, and recovery. Initial Marker fast exposed a VLM/Docker startup dependency; the successful local llama.cpp reruns do not close those failure paths.
 
 Collect bounded startup/inference evidence on supported target hosts. Record unavailable native Windows or distribution evidence as unavailable, not passed.
@@ -132,7 +132,7 @@ CLI modes, job/result conversion, and JSONL lifecycle events are connected, but 
 
 ### U02 and later units
 
-Caste is extracted and smoke-tested, but its content behavior needs broader corpus review. Numbered outputs, safe publication, diagnostics persistence, the fast health check, full CPU fallback/supervision, complete installation, remaining CLI behavior, and release acceptance remain planned work. UI `0.3.0` remains a separate later delivery.
+The fast engine is extracted and smoke-tested, but its content behavior needs broader corpus review. Numbered outputs, safe publication, diagnostics persistence, the fast health check, full CPU fallback/supervision, complete installation, remaining CLI behavior, and release acceptance remain planned work. UI `0.3.0` remains a separate later delivery.
 
 ### Resume and evidence preservation
 

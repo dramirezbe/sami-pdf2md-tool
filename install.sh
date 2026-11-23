@@ -5,7 +5,7 @@
 #
 # sami is fully local and keyless. All three modes (fast/balanced/quality)
 # run without Docker or API keys:
-#   - fast (Caste):     CPU only.
+#   - fast:             CPU only.
 #   - balanced (default): RF-DETR via Torch, CUDA if available else CPU.
 #   - quality (VLM):    llama.cpp (GGUF); GPU offload scaled by VRAM, CPU otherwise.
 # llama-server and OCR models are auto-provisioned on first run.

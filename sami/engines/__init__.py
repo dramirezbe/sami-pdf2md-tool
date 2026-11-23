@@ -16,7 +16,7 @@ class EngineSelection:
 
 
 MODE_TABLE = {
-    "fast": EngineSelection("caste", "sami.engines.fast"),
+    "fast": EngineSelection("fast", "sami.engines.fast"),
     "balanced": EngineSelection("marker", "sami.engines.marker", "fast"),
     "quality": EngineSelection("marker", "sami.engines.marker", "balanced"),
 }
@@ -42,7 +42,7 @@ def convert(
     """Import and run the adapter selected by the request's public mode."""
     selection = select_engine(request.mode)
     adapter = import_module(selection.module)
-    if selection.engine == "caste":
+    if selection.engine == "fast":
         return adapter.convert(request)
     if cpu_config is None or logger is None or stage_logger is None or stage_done_logger is None:
         raise ValueError("Marker conversion requires CPU configuration and progress callbacks")

@@ -314,9 +314,9 @@ class TestModeTableUnchanged(unittest.TestCase):
         self.assertIn("balanced", MODE_TABLE)
         self.assertIn("quality", MODE_TABLE)
 
-    def test_fast_uses_caste(self):
+    def test_fast_uses_fast_engine(self):
         from sami.engines import MODE_TABLE
-        self.assertEqual(MODE_TABLE["fast"].engine, "caste")
+        self.assertEqual(MODE_TABLE["fast"].engine, "fast")
 
     def test_balanced_uses_marker_fast_profile(self):
         from sami.engines import MODE_TABLE

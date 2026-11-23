@@ -2,7 +2,7 @@
 """sami — Smart Automated Markdown Interpreter.
 
 Convert PDF files to Markdown with figures extracted.
-Converts PDFs locally with Caste or Marker engines.
+Converts PDFs locally with the fast or Marker engines.
 
 For each input PDF, creates a folder with the same stem containing:
   - <stem>.md  (text + LaTeX equations + Markdown tables)
@@ -12,7 +12,7 @@ Usage:
     sami paper.pdf                     # -> paper/paper.md + figures
     sami paper.pdf -o out/             # -> out/paper.md + figures
     sami a.pdf b.pdf                   # batch convert
-    sami paper.pdf --mode fast         # Caste fast mode
+    sami paper.pdf --mode fast         # fast mode
     sami paper.pdf --mode quality      # Marker balanced profile
     sami paper.pdf --json              # protocol 1 JSONL on stdout
     sami paper.pdf --flat              # no subfolder, output beside the PDF
@@ -627,7 +627,7 @@ def _health_command(argv: list[str]) -> int:
 # ---------------------------------------------------------------------------
 
 def _effective_device(engine: str) -> str:
-    if engine == "caste":
+    if engine == "fast":
         return "cpu"
     configured = os.environ.get("TORCH_DEVICE", "").lower()
     fast_device = os.environ.get("FAST_DETECTOR_DEVICE", "").lower()
@@ -668,7 +668,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--mode", choices=VALID_MODES, default="balanced",
-        help="conversion mode: Caste fast, Marker balanced, or Marker quality (default: balanced)",
+        help="conversion mode: fast, Marker balanced, or Marker quality (default: balanced)",
     )
     parser.add_argument(
         "--no-strip-refs", action="store_true",

@@ -23,7 +23,7 @@ Decision: standardize **all** heavy inference on local `llama.cpp` (llama-server
 
 | Public mode | Engine | Layout backend | Inference server | Device policy |
 |---|---|---|---|---|
-| `fast` | Caste | PyMuPDF heuristics | none | CPU only; no Torch models, no server provisioning. |
+| `fast` | Fast engine | PyMuPDF heuristics | none | CPU only; no Torch models, no server provisioning. |
 | `balanced` (**default**) | Marker, internal `fast` | RF-DETR (Torch) | **none** | Torch device = CUDA if usable, else CPU. Fully portable with no inference server. |
 | `quality` | Marker, internal `balanced` | VLM | llama-server + GGUF | VLM runs on llama.cpp with `-ngl` scaled to VRAM (see D3); CPU = `-ngl 0`. |
 
@@ -70,4 +70,4 @@ Replace the binary 8 GB cutoff in `_resolve_mode()` with a VRAM-to-`-ngl` ladder
 ## Out of scope for 0.2.0 (recorded, not now)
 
 - An `auto` mode that measures output fidelity and escalates `fast → balanced → quality` only when needed. The notebook's independent-QC layer (PyMuPDF/pdfminer) is the measurement that would drive it. The index freezes the three modes as explicit, so auto-escalation is a 0.3.0+ follow-up, not a 0.2.0 engine change.
-- Replacing any engine with the notebook's PyMuPDF converter. `fast`/Caste already covers that niche; adding it as a fourth engine violates the fixed "preserve Marker, Caste as fast" requirement.
+- Replacing any engine with the notebook's PyMuPDF converter. The `fast` engine already covers that niche; adding it as a fourth engine violates the fixed "preserve Marker, fast engine as `fast`" requirement.

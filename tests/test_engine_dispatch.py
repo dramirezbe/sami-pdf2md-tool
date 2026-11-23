@@ -10,7 +10,7 @@ class EngineDispatchTests(unittest.TestCase):
         script = r'''
 import sys
 from sami.engines import select_engine
-assert select_engine("fast").engine == "caste"
+assert select_engine("fast").engine == "fast"
 assert select_engine("balanced").engine == "marker"
 assert select_engine("balanced").profile == "fast"
 assert select_engine("quality").engine == "marker"

@@ -50,7 +50,7 @@ Preserve the direct form; `convert` is an explicit form useful for scripts. Reso
 
 Do not use hardware to automatically change `balanced` to `fast`. Device and content profile are separate controls. Add macOS/MPS selection only after verifying its secondary scope; do not accept options that will be ignored.
 
-Earlier proposals remaining in the technical backlog: page ranges/limits, OCR/languages, images, markers, tables, and configurable concurrency. These are not required to preserve current SAMI options. If included in `0.2.0`, first define capabilities/defaults per engine and test them; `fast` retains OCR/images off and Caste speed by default. Do not expose a flag that an engine accepts but does not apply.
+Earlier proposals remaining in the technical backlog: page ranges/limits, OCR/languages, images, markers, tables, and configurable concurrency. These are not required to preserve current SAMI options. If included in `0.2.0`, first define capabilities/defaults per engine and test them; `fast` retains OCR/images off and the fast engine's speed by default. Do not expose a flag that an engine accepts but does not apply.
 
 ### Document discovery
 
@@ -112,17 +112,17 @@ Use a temporary output directory. Fast tests inject adapters; acceptance runs us
 | `.github/workflows/release.yml` | CLI tag `v0.2.0`, builds/checksums, draft, assets, validation, and publication. |
 | `.gitignore` | Ignore environments/models/results, not manifests/locks. |
 | `README.md`, `CLAUDE.md` | Usage, architecture, complete installation, fallback, and actual limitations. |
-| `.claude/agents/convert.md`, `install-check.md`, `test.md` | Remove first-download-during-conversion assumptions; update tests/defaults. Do not apply historical figure expectations to the Caste engine with images off. |
+| `.claude/agents/convert.md`, `install-check.md`, `test.md` | Remove first-download-during-conversion assumptions; update tests/defaults. Do not apply historical figure expectations to the fast engine with images off. |
 | `CHANGELOG.md`, `docs/releasing.md` | `0.2.0` notes, migration, and reproducible runbook. |
 
-Do not modify `cpu_monitor.py` without a demonstrated need. Do not include `.atl/`, caches, or personal diagnostics in commits/assets. Retain Caste as context, not as a production package.
+Do not modify `cpu_monitor.py` without a demonstrated need. Do not include `.atl/`, caches, or personal diagnostics in commits/assets. Retain the reference extraction code as context, not as a production package.
 
 ### Acceptance matrix
 
 | Group | Required evidence |
 |---|---|
 | Contracts and logic | Fast tests without network/models, valid stdout, side-effect-free help, and output invariants. |
-| Engines | U00 corpus results for both Marker profiles and Caste; text, tables, equations/figures where applicable, and links. |
+| Engines | U00 corpus results for both Marker profiles and the fast engine; text, tables, equations/figures where applicable, and links. |
 | CPU installation | Windows 11 and Debian-based matrix: no preinstalled Python, all three modes prepared, conversion with network blocked. |
 | Acceleration | Real hardware for each advertised combination; verify actual VLM server/device and failure→CPU. A hosted CPU runner does not demonstrate GPU support. |
 | Persistence | Second execution without deep diagnostics, measured health, negative cache, and selective changes. |

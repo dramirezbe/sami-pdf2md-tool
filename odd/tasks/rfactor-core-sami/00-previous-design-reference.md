@@ -10,9 +10,9 @@ Opened: **2026-11-18 10:31:38**, America/Bogota (UTC−05:00).
 Last design update: **2026-11-18 11:29:26**, America/Bogota (UTC−05:00).
 Author: Codex, based on user requirements and decisions.
 Status: **analysis for discussion; implementation not authorized**.
-Reviewed baseline: commit `6452f12`, local SAMI code, and Caste reference.
+Reviewed baseline: commit `6452f12`, local SAMI code, and the reference extraction code.
 
-The proposal preserves SAMI's Markdown conversion logic and adds a Caste-based fast engine. The refactor separates machine diagnostics, dependency preparation, resource selection, conversion, and presentation. The first delivery covers core, CLI, and installers, prioritizing Windows 11 and Debian-based Linux; macOS is secondary. UI is a later independent delivery communicating exclusively through CLI commands/events.
+The proposal preserves SAMI's Markdown conversion logic and adds a fast engine. The refactor separates machine diagnostics, dependency preparation, resource selection, conversion, and presentation. The first delivery covers core, CLI, and installers, prioritizing Windows 11 and Debian-based Linux; macOS is secondary. UI is a later independent delivery communicating exclusively through CLI commands/events.
 
 Quick reading: section 7.5 collects intended final CLI features; section 8 defines CLI-first/UI-later deployment; section 9 retains the Electron stack and graphical requirements. Section 12 consolidates settled daily-use decisions. Section 13 lists branches/files; section 14 publishes CLI `0.2.0` after its merge into `main`, followed by UI `0.3.0` in section 15. All scope describes future design, not implemented features.
 
@@ -22,11 +22,11 @@ This task produces only this document. No components have been installed, driver
 
 | Topic | Status and scope |
 |---|---|
-| Current SAMI conversion | **Preserve** its Marker-based Markdown conversion logic. Hardware adaptation must not replace it with Caste heuristics. |
-| Caste | Use only as the basis for `fast`; it does not replace SAMI's higher-quality modes. |
+| Current SAMI conversion | **Preserve** its Marker-based Markdown conversion logic. Hardware adaptation must not replace it with fast-engine heuristics. |
+| Fast engine | Used only for `fast` mode; it does not replace SAMI's higher-quality modes. |
 | Public modes | `fast`, `balanced`, `quality`. The user corrected the middle name. Section 5 proposes the last two modes' Marker mapping. |
 | Default mode | **`balanced`**, confirmed by the user. |
-| `fast` behavior | Use the effective Caste batch configuration: `quality="high"`, `ocr=False`, `images=False`; retain lightweight text/table extraction without added heavy work. |
+| `fast` behavior | Use the effective fast-engine batch configuration: `quality="high"`, `ocr=False`, `images=False`; retain lightweight text/table extraction without added heavy work. |
 | References | **Always retain** bibliography and links inside Markdown. Do not remove them or export them as external bibliography artifacts. |
 | Existing files | Create a new numbered output by default, retaining previous versions. |
 | Persisted diagnostics | Full diagnostics during installation; save and reuse results. Normal use performs only a quick compatibility health check. |
@@ -42,7 +42,7 @@ This task produces only this document. No components have been installed, driver
 | Development branches | `refactor/0_2_0_sami_cli` for core/CLI/installers; `feat/0_3_0_sami_ui` for Electron and its CLI-dependent deployment. |
 | Target releases | **CLI `0.2.0`**, tag `v0.2.0`, after its merge into `main`; **UI `0.3.0`**, tag `v0.3.0`, after its later merge. CLI publication does not wait for UI. |
 
-Default profile, Caste behavior, references, existing outputs, complete preparation, and CPU fallback are settled. Remaining capability, flag, and version-matrix details are listed at the end.
+Default profile, fast-engine behavior, references, existing outputs, complete preparation, and CPU fallback are settled. Remaining capability, flag, and version-matrix details are listed at the end.
 
 ## 2. Verified repository starting point
 
@@ -57,9 +57,9 @@ Default profile, Caste behavior, references, existing outputs, complete preparat
 | Output | Per-PDF subdirectory except `--flat`; removes references by default; publishes individual moves from staging. | Change to permanent references/links and numbered outputs; strengthen publication while retaining Marker conversion. |
 | [install.sh](../../../install.sh), [setup.sh](../../../setup.sh) | Bash; uv/micromamba installation and NVIDIA Docker preparation in some Linux environments. | Not Windows installers; must not assume `apt` for all Linux. |
 | [pyproject.toml](../../../pyproject.toml) | Marker mandatory; Python `>=3.11,<3.14`. | Separating fast base/heavy components requires packaging changes, not merely flags. |
-| [Caste code](../refactor-core-sami/PDF2MD_caste.py) | PyMuPDF, pdfplumber, optional Tesseract, layout heuristics, manifest, auditing. | Extract only fast engine/useful diagnostic concepts; do not import globally executing cells. |
+| Reference extraction code (removed from the repository) | PyMuPDF, pdfplumber, optional Tesseract, layout heuristics, manifest, auditing. | Extract only fast engine/useful diagnostic concepts; do not import globally executing cells. |
 
-Caste remains in `refactor-core-sami/`. This analysis is stored in `rfactor-core-sami/`, honoring the requested task path.
+The reference extraction code formerly lived in `refactor-core-sami/`. This analysis is stored in `rfactor-core-sami/`, honoring the requested task path.
 
 ## 3. Machine diagnostics: what to measure and when
 
@@ -151,15 +151,15 @@ On priority platforms, all three profiles need tested local CPU paths prepared a
 
 | Public mode | Proposed engine | Priority and behavior |
 |---|---|---|
-| `fast` | Caste batch extraction: PyMuPDF/pdfplumber with internal `high`, OCR/images off. | Retain fast text/table path without Marker, PyTorch, Tesseract, VLM. |
+| `fast` | The fast engine's batch extraction: PyMuPDF/pdfplumber with internal `high`, OCR/images off. | Retain fast text/table path without Marker, PyTorch, Tesseract, VLM. |
 | `balanced` | Current SAMI pipeline, Marker configured `fast`. | Retain Marker structure handling at lower cost than its `balanced` mode. |
 | `quality` | Current SAMI pipeline, Marker configured `balanced`. | Prioritize reconstruction/recognition; always local and keyless. |
 
-Caste/Marker separation follows explicit user instruction. The two Marker-profile mappings are a proposal to validate on representative documents. Names do not promise higher quality on every page.
+The fast/Marker separation follows explicit user instruction. The two Marker-profile mappings are a proposal to validate on representative documents. Names do not promise higher quality on every page.
 
-Do not apply Caste normalization, paragraph reconstruction, or heading heuristics to Marker Markdown. Preserve content, figures, rendering logic; refactor interfaces/management around the engine. Validation improvements may produce separate reports without rewriting output.
+Do not apply fast-engine normalization, paragraph reconstruction, or heading heuristics to Marker Markdown. Preserve content, figures, rendering logic; refactor interfaces/management around the engine. Validation improvements may produce separate reports without rewriting output.
 
-Marker 2.0 differentiates profiles and OCR/VLM usage; copying Caste names is insufficient. Bind exact settings to the validated version. See [Marker 2.0 mode configuration](https://github.com/datalab-to/marker/blob/v2.0.0/README.md#usage).
+Marker 2.0 differentiates profiles and OCR/VLM usage; copying fast-engine names is insufficient. Bind exact settings to the validated version. See [Marker 2.0 mode configuration](https://github.com/datalab-to/marker/blob/v2.0.0/README.md#usage).
 
 ### 5.1 Profile and resource decisions
 
@@ -167,7 +167,7 @@ Marker 2.0 differentiates profiles and OCR/VLM usage; copying Caste names is ins
 |---|---|
 | Default profile | **`balanced`**, confirmed. Prepared during installation with the other modes. |
 | GPU failure/insufficient VRAM | Warn and continue automatically on CPU in the same mode, without dialog/acceleration-related blocking. Prepare/test fallback at installation. |
-| `fast` scans | **No automatic OCR**, matching effective Caste configuration. Record unextractable page/partial status; do not load a heavy engine or silently change mode. |
+| `fast` scans | **No automatic OCR**, matching the effective fast-engine configuration. Record unextractable page/partial status; do not load a heavy engine or silently change mode. |
 | Per-page quality | Evaluate illegible-text signals, table structure, reading order; not text quantity alone. |
 | Resources | Separate quality mode from device/concurrency. Current 8 GiB threshold is not universal across models. |
 
@@ -175,17 +175,17 @@ Memory limits consider model, precision/quantization, resolution, context, batch
 
 GPU failure during conversion discards incomplete attempt staging and retries that document on CPU. Disable failed backend for the rest of the batch; record reason to avoid repeated expensive attempts under identical conditions. Distinguish persistent incompatibility from transient memory pressure; recovery must not bother the user each invocation. Fallback warnings alone do not mean failure if CPU conversion succeeds.
 
-### 5.2 What to extract and review from Caste
+### 5.2 What to extract and review from the reference extraction code
 
 Take fast extraction, tables, heuristic ordering, gap recording. Separate auditing from engine to prevent conversions/sampling on import.
 
-Speed decisions follow the **actual invocation** in `PDF2MD_caste.py`, not its `fast` preset name: the batch uses `Options(quality="high", ocr=False, images=False, overwrite=True)`. Internal `fast` disables features the batch uses. Thus public SAMI `fast` preserves table/heading detection, reading order, markers, `pipe` tables, and `run` consistency checks with OCR/images off. Replace original overwrite policy with numbered outputs because the user chose to retain earlier conversions.
+Speed decisions follow the **actual invocation** in the reference extraction code (removed from the repository), not its `fast` preset name: the batch uses `Options(quality="high", ocr=False, images=False, overwrite=True)`. Internal `fast` disables features the batch uses. Thus public SAMI `fast` preserves table/heading detection, reading order, markers, `pipe` tables, and `run` consistency checks with OCR/images off. Replace original overwrite policy with numbered outputs because the user chose to retain earlier conversions.
 
-Do not automatically execute the separate random-audit cell or add OCR/VLM/layout models here. Preserving bibliography links needs lightweight recovery of PDF links; Caste lacks explicit handling of all link annotations. Measure adaptation/refactor cost versus the original batch on the same machine/corpus. Caste speed is the acceptance objective; no measurement yet establishes identical speed across machines.
+Do not automatically execute the separate random-audit cell or add OCR/VLM/layout models here. Preserving bibliography links needs lightweight recovery of PDF links; the reference code lacks explicit handling of all link annotations. Measure adaptation/refactor cost versus the original batch on the same machine/corpus. The fast engine's speed is the acceptance objective; no measurement yet establishes identical speed across machines.
 
 Do not copy reactive OCR rescue unreviewed: it compares output against the OCR text it used to construct that output and may suggest improvement without independent evidence. Cell-token comparisons do not validate row/column positions; rescue markers do not match the auditor pattern. Classify PDF origin before OCR rather than calling newly recognized text native.
 
-The user's Caste-speed experience motivates this design; no local benchmark yet compares both engines under equivalent conditions.
+The user's experience with the reference code's speed motivates this design; no local benchmark yet compares both engines under equivalent conditions.
 
 ## 6. CLI core and component boundaries
 
@@ -195,7 +195,7 @@ Proposed responsibilities, not implemented file structure:
 |---|---|
 | `hardware` | Full installation diagnostics, persisted compatibility profile, fast health check, independent of heavy models. |
 | `runtime` | Resolve/prepare/verify dependencies/models during installation; manage backends/owned processes in conversion without repeating diagnosis. |
-| `engines` | Caste and SAMI/Marker adapters without terminal/window logic. |
+| `engines` | Fast and SAMI/Marker adapters without terminal/window logic. |
 | `jobs` | Discover inputs, plan batches, allocate resources, cancel, continue after failures. |
 | `outputs` | Paths, collisions, resources, staging, result publication. |
 | `validation` | Diagnostics/quality status with explicit verification scope. |
@@ -228,9 +228,9 @@ sami setup
 
 Additional proposal: expose device, concurrency, OCR/languages, images, page markers, selection/page limits, existing-file policy. Clearly reject unsupported options instead of accepting/ignoring them. Advanced Marker-specific options may use separate validated configuration.
 
-Not all these options exist in SAMI today. Evaluate Caste controls as extensions while distinguishing existing compatibility.
+Not all these options exist in SAMI today. Evaluate the fast engine's controls as extensions while distinguishing existing compatibility.
 
-Both existing mode names change meaning in the proposed mapping: old SAMI `--mode fast` becomes new `balanced`; old `--mode balanced` becomes new `quality`. New `fast` uses Caste. `balanced` cannot also alias `quality` because it becomes a public profile itself. Document/test migration, including saved defaults/user scripts.
+Both existing mode names change meaning in the proposed mapping: old SAMI `--mode fast` becomes new `balanced`; old `--mode balanced` becomes new `quality`. New `fast` uses the extracted fast engine. `balanced` cannot also alias `quality` because it becomes a public profile itself. Document/test migration, including saved defaults/user scripts.
 
 ### 7.2 Folders and batches
 
@@ -270,7 +270,7 @@ Consolidated first-delivery scope, updated with user decisions. Proposed flags/t
 |---|---|
 | Independent use | Install/use SAMI fully in terminal before UI exists, without depending on UI. |
 | Inputs | One/multiple PDFs, a folder, or combinations; optional recursion, deterministic order, deduplication. |
-| Three modes | `fast` matches Caste with OCR/images off; **`balanced` default** and `quality` retain SAMI/Marker. Proposed internal mapping: Marker `fast`/`balanced`, respectively. |
+| Three modes | `fast` runs the fast engine with OCR/images off; **`balanced` default** and `quality` retain SAMI/Marker. Proposed internal mapping: Marker `fast`/`balanced`, respectively. |
 | Output content | Markdown text plus structure/tables/equations/figures according to engine/options. Retain Marker behavior; state fast-engine limits. |
 | Local processing | Keyless/no external conversion; installation prepares all modes for later offline operation. |
 | Installation diagnostics | Detect CPU/RAM/GPU/VRAM/OS/architecture/drivers/components; validate engines, persist positive/negative results. |
@@ -289,7 +289,7 @@ Proposed public extensions: device, concurrency, OCR/languages, images, page mar
 
 Proposed management: `sami health` quick human/JSON check; `sami doctor` explains persisted diagnostics without deep tests; `sami setup` explicitly enters installation/preparation/repair. Update/uninstall share installer component records; additional command names remain unfixed.
 
-Settled daily behavior: default `balanced`, Caste batch `fast` without OCR/images, references/links always in Markdown, numbered outputs, three modes prepared at installation, warning/automatic CPU fallback. Advertise GPU support only for verified combinations, not every vendor card.
+Settled daily behavior: default `balanced`, the fast engine's batch configuration without OCR/images, references/links always in Markdown, numbered outputs, three modes prepared at installation, warning/automatic CPU fallback. Advertise GPU support only for verified combinations, not every vendor card.
 
 ## 8. Installers and distribution
 
@@ -412,8 +412,8 @@ Pending UX/validation:
 | Area | Evidence before claiming support |
 |---|---|
 | SAMI preservation | Compare Marker content/structure before/after on identical PDFs with pinned versions/models/equivalent options; explain material differences. |
-| Caste engine | Simple native PDFs, columns, tables, images, scans with/without OCR; no silent page loss. |
-| Selected fast profile | Compare Caste `high/ocr=False/images=False` while retaining path/checks; no model loading/added random audit. |
+| Fast engine | Simple native PDFs, columns, tables, images, scans with/without OCR; no silent page loss. |
+| Selected fast profile | Compare the fast engine's `high/ocr=False/images=False` while retaining path/checks; no model loading/added random audit. |
 | Embedded references | Retain bibliography in both engines, recoverable inline URL/DOI links/internal anchors; no external bibliography artifacts/network queries. |
 | GPU fallback | Health/startup/execution failure: warning, CPU document retry, same mode, batch continuation without confirmation. Three CPU paths prepared at installation. |
 | Three modes | Measure time, RAM/VRAM, coverage, reading order, table structure, equations/figures. Separate startup/download from steady conversion. |
@@ -437,7 +437,7 @@ Do not invent improvement percentages, seconds/page, universal VRAM thresholds w
 | 0. Decisions/feasibility | Agree modes/defaults, verify Marker dependencies per platform/backend. | Concrete matrix/viable CPU-GPU paths; uncertainty visible. |
 | 1. Isolate current core | SAMI/Marker adapter, job/event contract. | Markdown conversion preserved against baseline. |
 | 2. Diagnostics/runtimes | Persisted installation diagnostics, quick health, private preparation, explicit drivers. | Verified reuse/selective invalidation, measured startup, actual-engine test at installation. |
-| 3. Profiles/CLI | Caste `fast`, folders/options/two progress levels. | Defined profiles, verifiable results, agreed CLI compatibility. |
+| 3. Profiles/CLI | Fast engine, folders/options/two progress levels. | Defined profiles, verifiable results, agreed CLI compatibility. |
 | 4. Cross-platform install | `curl`/`irm`, ready independent CLI, health contract, tested packages/update. | Stable OS/architecture/acceleration matrix; CLI complete before UI. |
 | 5. UI | Deployment stage gated by CLI health; OS package/Windows desktop-Start-`PATH` integration. | Install/reuse CLI, validate, then UI; verified double-click, graphical flows/export/viewers/update/uninstall. Separate delivery. |
 
@@ -450,7 +450,7 @@ User-confirmed daily-use decisions:
 | Topic | Final design decision |
 |---|---|
 | Default | `balanced`. |
-| `fast` speed | Actual Caste configuration: `high`, OCR/images off. Preserve text/tables; verify comparable speed without heavy models. |
+| `fast` speed | Actual fast-engine configuration: `high`, OCR/images off. Preserve text/tables; verify comparable speed without heavy models. |
 | References | Always retain bibliography/links in Markdown, without removal/external bibliography dependencies. |
 | Existing result | Create a numbered output, retain previous. |
 | Initial installation | Prepare all three modes/CPU fallback; no additional installation prompts in normal use. |
@@ -474,7 +474,7 @@ These are the two requested development branches. Do not create branches/commits
 
 Updated version decision: **`0.2.0` delivers complete independent CLI; `0.3.0` delivers UI**. Publish `v0.2.0` after CLI refactor without waiting for graphics, then develop/merge/publish `v0.3.0`. Both tags keep commits/assets; do not retroactively add UI to `v0.2.0`.
 
-Split commits by complete behavior with tests/docs. CLI: preserve Marker; persisted diagnostics/runtime; Caste/reference/output policy; batch/progress/protocol; installation/release. UI: health/CLI execution; queue/progress/cancel; viewers/drag; packaging/Windows integration. Each unit declares verification/rollback.
+Split commits by complete behavior with tests/docs. CLI: preserve Marker; persisted diagnostics/runtime; fast-engine/reference/output policy; batch/progress/protocol; installation/release. UI: health/CLI execution; queue/progress/cancel; viewers/drag; packaging/Windows integration. Each unit declares verification/rollback.
 
 Expected scope risks exceeding 400 lines/PR. Record actual size and review units; commit splitting is not multiple small PRs. Retain requested two branches, no subbranch chain. For over-budget PRs, document rationale/review strategy without compressing code/deleting comments.
 
@@ -497,7 +497,7 @@ Expected scope risks exceeding 400 lines/PR. Record actual size and review units
 | `test-pdfs/gen_test.py` | Extend only for reproducible references/links/tables/acceptance structures; retain current PDFs unless regeneration is necessary. |
 | This plan | Final decisions, validation evidence, relationship to branches/releases. |
 
-`odd/tasks/refactor-core-sami/PDF2MD_caste.py` is reading context for extraction, not a production module or a second maintained implementation. `cpu_monitor.py` needs no functional change absent demonstrated necessity. `.atl/` is unrelated local data.
+The reference extraction code (removed from the repository) was reading context for extraction, not a production module or a second maintained implementation. `cpu_monitor.py` needs no functional change absent demonstrated necessity. `.atl/` is unrelated local data.
 
 ### 13.3 CLI branch: proposed new files/directories
 
@@ -507,7 +507,7 @@ Module names map responsibilities; merge modules if simpler while retaining boun
 |---|---|
 | `sami/engines/__init__.py` | Engine contract/selection with deferred imports. |
 | `sami/engines/marker.py` | Current SAMI/Marker pipeline, profiles/events; preserve conversion rules. |
-| `sami/engines/fast.py` | Extracted/configured Caste engine without global notebook execution/automatic random audit. |
+| `sami/engines/fast.py` | Extracted/configured fast engine without global notebook execution/automatic random audit. |
 | `sami/hardware.py` | Full installation inventory/light resource queries. |
 | `sami/compatibility.py` | Persisted profile/schema/fingerprints, quick health, selective invalidation. |
 | `sami/runtime.py` | Resolve/prepare/validate three modes/private runtimes, update/repair. |
@@ -519,7 +519,7 @@ Module names map responsibilities; merge modules if simpler while retaining boun
 | `install.ps1` | Complete Windows 11 per-user bootstrap, `PATH`, location/version/health. Later UI installation only after CLI validation. |
 | `packaging/runtime-manifest.json` | Published runtime/version/model/source/verification combinations per platform; no personal machine diagnostics. |
 | `packaging/constraints/` and chosen manager lock | Reproducible base/validated CPU-CUDA-ROCm variants; exact format depends on preparation mechanism. |
-| `tests/` | Marker preservation, Caste, health/cache, fallback/folders/outputs/protocol; small link/reference/scan fixtures, no models downloaded per unit test. |
+| `tests/` | Marker preservation, fast engine, health/cache, fallback/folders/outputs/protocol; small link/reference/scan fixtures, no models downloaded per unit test. |
 | `.github/workflows/ci.yml` | PR/`main` unit checks, artifact smoke on priority platforms. |
 | `.github/workflows/release.yml` | Verified tag/commit builds, assets/checksums/draft/final publication; extended in UI stage. |
 | `CHANGELOG.md` | `0.2.0` changes/migration; do not invent historical `0.1.0` releases. |
@@ -555,7 +555,7 @@ Publish `0.2.0` after CLI branch merge, passing CI/installation tests and artifa
 
 ### 14.2 Preparation before tagging
 
-1. Complete/verify `refactor/0_2_0_sami_cli`: original SAMI/Caste comparisons, three modes, full CPU installation/persisted health, inline references/links, numbering/fallback warnings. Merge PR into `main`.
+1. Complete/verify `refactor/0_2_0_sami_cli`: original SAMI/fast-engine comparisons, three modes, full CPU installation/persisted health, inline references/links, numbering/fallback warnings. Merge PR into `main`.
 2. Close CLI without UI: modes/public protocol/health/full installers/command on `PATH`. No graphical shortcuts or advertised UI `.exe` in `0.2.0`.
 3. Include version bumps/notes in CLI PR: Python `0.2.0`, lock/manifest/changelog/docs. No unmerged local changes after candidate validation.
 4. Record exact candidate SHA merged into `main`; run trial CI/build/version/package smoke. Merge fixes and revalidate new SHA before tagging.

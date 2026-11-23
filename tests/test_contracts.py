@@ -75,7 +75,7 @@ class ContractWireTests(unittest.TestCase):
             resources=(Path("figures/图 1.png"),),
             references=(RecoveredReference(page=3, label="référence", destination="https://example.org/研究"),),
             processed_pages=4,
-            metrics={"duration": 1.25, "engine": "caste"},
+            metrics={"duration": 1.25, "engine": "fast"},
         )
         restored = EngineResult.from_json(result.to_json())
         self.assertEqual(restored, result)

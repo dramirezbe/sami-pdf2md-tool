@@ -53,7 +53,7 @@ sami paper.pdf -q                     # quiet mode
 
 All three modes are fully local and keyless — no Docker, no API keys required.
 
-- **`fast` (Caste)**: CPU only, no GPU needed.
+- **`fast`**: CPU only, no GPU needed.
 - **`balanced` (default)**: RF-DETR layout via Torch — uses CUDA if available, falls back to CPU automatically. No inference server needed.
 - **`quality`**: VLM layout via llama.cpp (GGUF) — GPU offload is scaled to available VRAM:
   - **≥ 8 GB VRAM**: full layer offload, fast quality conversion

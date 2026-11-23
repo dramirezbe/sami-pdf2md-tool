@@ -8,8 +8,8 @@ Status: **implementation authorized 2026-11-18**. Work is underway on `refactor/
 
 | Unit | Status | Evidence / next action |
 |---|---|---|
-| U00 | In progress; incomplete. | See [U00/U01 runtime and contract evidence](U00-U01-evidence.md). Baseline source files at `6452f12` and branch base `43007b5` compare identical for production paths. Both Marker profiles completed on two five-page PDFs in the locked Python 3.12 CPU environment; extracted pipeline outputs match baseline bytes. Caste was separately measured and is not the 15.7-second legacy Marker fast result. CPU path was explicitly configured for Torch, Surya, and llama.cpp. Native Windows and broader Debian/Ubuntu evidence remain unavailable. |
-| U01 | Implementation in progress; incomplete. | Added validated contracts and explicit wire representations in `sami/contracts.py`, protocol 1 JSONL events in `sami/events.py`, and wired the public `fast`/`balanced`/`quality` modes through deferred adapters and job/run results. End-to-end Caste and Marker CLI runs emit parseable JSONL; Marker retains baseline output hashes. Twenty-five focused tests pass. Remaining: complete cancellation event guarantees, output safety, and plan 01 acceptance review. |
+| U00 | In progress; incomplete. | See [U00/U01 runtime and contract evidence](U00-U01-evidence.md). Baseline source files at `6452f12` and branch base `43007b5` compare identical for production paths. Both Marker profiles completed on two five-page PDFs in the locked Python 3.12 CPU environment; extracted pipeline outputs match baseline bytes. The fast engine was separately measured and is not the 15.7-second legacy Marker fast result. CPU path was explicitly configured for Torch, Surya, and llama.cpp. Native Windows and broader Debian/Ubuntu evidence remain unavailable. |
+| U01 | Implementation in progress; incomplete. | Added validated contracts and explicit wire representations in `sami/contracts.py`, protocol 1 JSONL events in `sami/events.py`, and wired the public `fast`/`balanced`/`quality` modes through deferred adapters and job/run results. End-to-end fast-engine and Marker CLI runs emit parseable JSONL; Marker retains baseline output hashes. Twenty-five focused tests pass. Remaining: complete cancellation event guarantees, output safety, and plan 01 acceptance review. |
 
 Latest validation: `.venv/bin/python -m unittest discover -s tests -v` — 25 passed; `git diff --check` — clean. Runtime commands, environment and artifact paths are recorded in [U00/U01 evidence](U00-U01-evidence.md). U00/U01 remain incomplete pending their full acceptance criteria.
 
@@ -41,7 +41,7 @@ The work is divided into five plans to execute in order. Each identifies files, 
 
 | Order | Plan | Units | Branch and outcome |
 |---|---|---|---|
-| 1 | [CLI contracts and engines](01-cli-contracts-engines-outputs.md) | U00–U02 | `refactor/0_2_0_sami_cli`: feasibility, public contract, preserving Marker, Caste engine, and outputs. |
+| 1 | [CLI contracts and engines](01-cli-contracts-engines-outputs.md) | U00–U02 | `refactor/0_2_0_sami_cli`: feasibility, public contract, preserving Marker, fast engine, and outputs. |
 | 2 | [Diagnostics, runtimes, and installation](02-cli-diagnostics-runtime-installation.md) | U03–U05 | Same CLI branch: persisted diagnostics, fast health check, CPU fallback, and complete bootstrap. |
 | 3 | [Batches, progress, validation, and CLI release](03-cli-batches-validation-release-0.2.0.md) | U06–U07 | Complete CLI, merge into `main`, and publish **`v0.2.0`**. |
 | 4 | [Electron application](04-ui-electron-application-0.3.0.md) | U08–U09 | `feat/0_3_0_sami_ui`, from `main` with CLI published: an interface that executes commands. |
@@ -53,9 +53,9 @@ The CLI release does not wait for the UI. Do not create the UI branch during ini
 
 | Area | User decision |
 |---|---|
-| Conversion | Preserve SAMI/Marker's Markdown conversion logic; use Caste only as the fast engine. |
-| Modes | `fast`, **`balanced` by default**, `quality`. Working technical mapping: Caste, Marker `fast`, and Marker `balanced`, respectively. Validate in U00/U01. |
-| Caste configuration | Use its actual invocation: `quality="high", ocr=False, images=False`. Preserve text, tables, heuristic layout, markers, and existing checks without adding heavy models. |
+| Conversion | Preserve SAMI/Marker's Markdown conversion logic; use the fast engine only for `fast` mode. |
+| Modes | `fast`, **`balanced` by default**, `quality`. Working technical mapping: the fast engine, Marker `fast`, and Marker `balanced`, respectively. Validate in U00/U01. |
+| Fast engine configuration | Use its actual invocation: `quality="high", ocr=False, images=False`. Preserve text, tables, heuristic layout, markers, and existing checks without adding heavy models. |
 | References | Always retain bibliography text and recoverable links inside the `.md`. No `.bib` or dependency on external bibliography artifacts; do not invent URLs. |
 | Existing outputs | Create a new numbered output, preserving previous versions. |
 | Execution | Everything local and keyless; after installation, all three modes work without further downloads. |
@@ -106,7 +106,7 @@ Use this template to track implementation; do not fill it with assumed results:
 ## Working references
 
 - [Complete previous design, retained as a historical reference](00-previous-design-reference.md). Its old sections do not override the active plans.
-- [Caste reference code](../refactor-core-sami/PDF2MD_caste.py).
+- The reference extraction code (removed from the repository).
 - [06 — engine backend and GPU policy](06-engine-backend-and-gpu-policy.md): authorized decision on llama.cpp backend, per-mode device matrix, VRAM offload ladder, and Windows+Linux parity.
 - [Current SAMI entry point](../../../sami/cli.py), [metadata](../../../pyproject.toml), and [repository guide](../../../CLAUDE.md).
 

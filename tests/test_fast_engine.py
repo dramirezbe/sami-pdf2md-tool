@@ -13,7 +13,7 @@ from sami.engines.fast import Options, convert
 REPOSITORY = Path(__file__).resolve().parents[1]
 
 
-class CasteFastEngineTests(unittest.TestCase):
+class FastEngineTests(unittest.TestCase):
     def test_reference_profile_is_high_with_ocr_and_images_disabled(self) -> None:
         options = Options(
             quality="high", ocr=False, images=False, markers=True,
@@ -29,11 +29,11 @@ class CasteFastEngineTests(unittest.TestCase):
     def test_text_and_tables_convert_without_entering_ocr_path(self) -> None:
         pdf = REPOSITORY / "test-pdfs" / "test_document.pdf"
         request = ConversionRequest(
-            job_id="caste-fast-fixture",
+            job_id="fast-fixture",
             input_path=pdf.resolve(),
             mode="fast",
             options=ConversionOptions(device="auto"),
-            staging_dir=(Path(tempfile.gettempdir()) / "sami-caste-stage").resolve(),
+            staging_dir=(Path(tempfile.gettempdir()) / "sami-fast-stage").resolve(),
             device="cpu",
         )
         with patch("sami.engines.fast.run_ocr_on_page", side_effect=AssertionError("OCR ran")):
@@ -44,7 +44,7 @@ class CasteFastEngineTests(unittest.TestCase):
         self.assertEqual(result.metrics["images"], 0)
         self.assertIn("# Chapter 1: Kinematics", result.markdown)
         self.assertIn("| Variable | Symbol | Unit | Value |", result.markdown)
-        self.assertEqual(select_engine("fast").engine, "caste")
+        self.assertEqual(select_engine("fast").engine, "fast")
 
 
 if __name__ == "__main__":

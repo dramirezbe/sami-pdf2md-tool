@@ -1,7 +1,7 @@
-"""Fast, local Caste-based PDF extraction adapter.
+"""Fast, local PDF extraction adapter.
 
-The extraction helpers below are copied from the reviewed Caste reference.
-This module does not import its notebook/audit entry point.
+Lightweight text/table extraction (PyMuPDF/pdfplumber) with OCR and image
+extraction disabled. This module does not import any notebook/audit entry point.
 """
 from __future__ import annotations
 
@@ -344,5 +344,5 @@ def convert(request: ConversionRequest) -> EngineResult:
         processed_pages=len(pages),
         warnings=tuple(warnings),
         gaps=tuple({"code": "CONTENT_GAP", "message": gap} for gap in gaps),
-        metrics={"tables": table_count, "images": image_count, "engine": "caste"},
+        metrics={"tables": table_count, "images": image_count, "engine": "fast"},
     )

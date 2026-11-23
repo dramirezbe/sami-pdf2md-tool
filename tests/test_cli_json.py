@@ -23,7 +23,7 @@ class CliJsonTests(unittest.TestCase):
             "LLAMA_CPP_NGL": "0",
         }):
             self.assertEqual(cli._effective_device("marker"), "cpu")
-            self.assertEqual(cli._effective_device("caste"), "cpu")
+            self.assertEqual(cli._effective_device("fast"), "cpu")
 
     def test_fast_mode_emits_only_valid_jsonl_and_publishes_result(self) -> None:
         from sami import cli

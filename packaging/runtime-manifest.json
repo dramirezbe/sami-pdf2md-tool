@@ -39,7 +39,7 @@
     "note": "Pinned. Do not upgrade silently."
   },
   "modes": {
-    "fast":     { "engine": "caste",  "inference_server": false, "gpu_required": false },
+    "fast":     { "engine": "fast",   "inference_server": false, "gpu_required": false },
     "balanced": { "engine": "marker", "inference_server": false, "gpu_required": false, "marker_mode": "fast"     },
     "quality":  { "engine": "marker", "inference_server": true,  "gpu_required": false, "marker_mode": "balanced",
                   "note": "inference_server=true means llama-server is used. gpu_required=false: works on CPU with -ngl 0." }
