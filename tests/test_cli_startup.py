@@ -45,7 +45,8 @@ assert "surya" not in sys.modules
         with tempfile.TemporaryDirectory(prefix="sami cli test ") as temp_dir:
             app_home = Path(temp_dir) / "app home"
             env = self._environment(app_home)
-            for argument, expected in (("--help", "usage: sami"), ("--version", "sami 0.1.0")):
+            from sami import __version__
+            for argument, expected in (("--help", "usage: sami"), ("--version", f"sami {__version__}")):
                 with self.subTest(argument=argument):
                     completed = subprocess.run(
                         [sys.executable, "-m", "sami.cli", argument],

@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "refactor/**", "fix/**"]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Unit tests (light deps, no ML stack)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install light test dependencies
+        # The suite mocks the heavy ML stack (marker-pdf / torch / surya),
+        # so CI installs only the light deps the fast engine and tests need.
+        # This keeps CI fast and deterministic; the full engine is validated
+        # separately by the curl install on a real host.
+        run: uv pip install --system pytest pdfplumber "pymupdf==2.1" "psutil>=5.9" "PyYAML>=6.0"
+
+      - name: Run test suite
+        run: python -m pytest tests/ -q
+
+  build:
+    name: Build wheel (packaging check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build sdist and wheel
+        run: uv build
+
+      - name: Verify entry point metadata
+        run: |
+          python -c "import tomllib; d=tomllib.load(open('pyproject.toml','rb')); \
+            assert d['project']['version']=='0.1.9', d['project']['version']; \
+            assert d['project']['scripts']['sami']=='sami.cli:main'; \
+            print('packaging OK', d['project']['version'])"
