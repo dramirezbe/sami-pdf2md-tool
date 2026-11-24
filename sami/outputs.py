@@ -6,23 +6,22 @@ Policy (plan 01 U02):
 - Two PDFs with the same stem → distinct names deterministically
 - Published outputs carry a YAML front-matter block with the absolute
   source path so future runs can tell which file owns which output.
-- Atomic publication: staging dir is on the same filesystem as the
-  output directory; files are moved with os.replace so a partial write
-  never leaves a corrupt output visible.
+- The staging directory is on the output filesystem. A directory result
+  is renamed as a unit. Flat resources are published before the Markdown.
 
-Win + Linux portable: uses pathlib, os.replace, and no POSIX-specific
-APIs.  Front-matter is minimal YAML written without the pyyaml import
+Front-matter is minimal YAML written without the pyyaml import
 so the module loads fast (the import of yaml would pull in marker's
 startup chain on Windows).
 """
 from __future__ import annotations
 
+from contextlib import contextmanager
 import os
 import re
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Sequence
+from urllib.parse import quote
 
 
 # ---------------------------------------------------------------------------
@@ -82,39 +81,14 @@ def read_sami_source(md_path: Path) -> str | None:
 # Stem reservation
 # ---------------------------------------------------------------------------
 
-def _candidate_md_paths(output_dir: Path, stem: str, flat: bool) -> list[Path]:
-    """Return the .md path(s) that would belong to *stem* in *output_dir*."""
+def _destinations(output_dir: Path, stem: str, flat: bool) -> tuple[Path, ...]:
     if flat:
-        return [output_dir / f"{stem}.md"]
-    return [output_dir / stem / f"{stem}.md"]
+        return output_dir / f"{stem}.md", output_dir / f"{stem}_assets"
+    return (output_dir / stem,)
 
 
-def _stem_is_available(
-    stem: str,
-    output_dir: Path,
-    flat: bool,
-    src: Path,
-    *,
-    claimed: set[str],
-) -> bool:
-    """True if *stem* can be used for a new output from *src*.
-
-    A stem is available when:
-    - It has not been claimed in this run (``claimed`` set).
-    - No .md file already exists at that path, **or** every existing .md at
-      that path was written by *src* (same absolute source path in front-matter).
-    """
-    if stem in claimed:
-        return False
-
-    for md_path in _candidate_md_paths(output_dir, stem, flat):
-        if md_path.exists():
-            existing_source = read_sami_source(md_path)
-            src_posix = src.resolve().as_posix()
-            if existing_source != src_posix:
-                # Owned by another source or not a sami file → not available
-                return False
-    return True
+def _occupied(path: Path) -> bool:
+    return path.exists() or path.is_symlink()
 
 
 def reserve_stem(
@@ -126,11 +100,8 @@ def reserve_stem(
 ) -> str:
     """Return the next available output stem for *src* in *output_dir*.
 
-    Tries ``src.stem``, then ``src.stem_2``, ``src.stem_3`` … until it
-    finds one that is not claimed in this run and not owned by another
-    source.  The returned stem is added to *claimed* so that a second call
-    for a different PDF with the same stem in the same batch gets the next
-    free number without reading the filesystem again.
+    Try the original stem and then numbered stems, preserving all prior
+    outputs. Use `claim_stem` to hold the reservation across processes.
 
     Args:
         src:      absolute path of the source PDF.
@@ -147,12 +118,34 @@ def reserve_stem(
     base = src.stem
     stem = base
     n = 1
-    while not _stem_is_available(stem, output_dir, flat, src, claimed=claimed):
+    while (
+        stem in claimed
+        or _occupied(output_dir / f".{stem}-sami-claim")
+        or any(_occupied(path) for path in _destinations(output_dir, stem, flat))
+    ):
         n += 1
         stem = f"{base}_{n}"
 
     claimed.add(stem)
     return stem
+
+
+@contextmanager
+def claim_stem(src: Path, output_dir: Path, flat: bool):
+    """Hold a cross-process claim until the caller finishes publishing."""
+    while True:
+        stem = reserve_stem(src, output_dir, flat)
+        claim = output_dir / f".{stem}-sami-claim"
+        try:
+            claim.touch(exist_ok=False)
+        except FileExistsError:
+            continue
+        try:
+            if not any(_occupied(path) for path in _destinations(output_dir, stem, flat)):
+                yield stem
+                return
+        finally:
+            claim.unlink(missing_ok=True)
 
 
 # ---------------------------------------------------------------------------
@@ -167,9 +160,7 @@ def publish(
 ) -> dict[str, Path | list[Path]]:
     """Move files from *staging_dir* to their final destinations atomically.
 
-    The staging directory must be on the same filesystem as *output_dir* so
-    that ``os.replace`` is atomic.  Creates the destination directory if
-    needed.
+    The staging directory must be on the same filesystem as the output.
 
     Returns:
         ``{"md_path": Path, "resource_paths": list[Path]}``
@@ -194,30 +185,47 @@ def publish(
         p for p in staging_dir.rglob("*") if p.is_file() and p != staged_md
     )
 
-    if flat:
-        dest_dir = output_dir
-        dest_md = dest_dir / md_name
-    else:
-        dest_dir = output_dir / stem
-        dest_md = dest_dir / md_name
+    relative = [file.relative_to(staging_dir) for file in resources]
+    if not flat:
+        dest, = _destinations(output_dir, stem, flat)
+        if _occupied(dest):
+            raise FileExistsError(f"Output directory already exists: {dest}")
+        staging_dir.rename(dest)
+        return {"md_path": dest / md_name, "resource_paths": [dest / path for path in relative]}
 
-    dest_dir.mkdir(parents=True, exist_ok=True)
-
-    # Publish resources first (figures etc.) so the .md links are valid when
-    # it appears.  If this fails mid-way, the .md hasn't been published yet
-    # so no broken document is visible to the user.
-    published_resources: list[Path] = []
-    for res in resources:
-        rel = res.relative_to(staging_dir)
-        dest_res = dest_dir / rel
-        dest_res.parent.mkdir(parents=True, exist_ok=True)
-        os.replace(str(res), str(dest_res))
-        published_resources.append(dest_res)
-
-    # Publish the .md last — this is the visible commit point.
-    os.replace(str(staged_md), str(dest_md))
-
-    return {"md_path": dest_md, "resource_paths": published_resources}
+    dest_md, namespace = _destinations(output_dir, stem, flat)
+    if staged_md.name != dest_md.name:
+        dest_md = output_dir / staged_md.name
+    if _occupied(dest_md):
+        raise FileExistsError(f"Markdown already exists: {dest_md}")
+    if resources:
+        markdown = staged_md.read_text(encoding="utf-8")
+        targets = {}
+        prefix = quote(namespace.name, safe="")
+        for path in relative:
+            raw = path.as_posix()
+            escaped = quote(raw, safe="/")
+            targets[raw] = targets[escaped] = f"{prefix}/{escaped}"
+        names = "|".join(re.escape(name) for name in sorted(targets, key=len, reverse=True))
+        markdown = re.sub(
+            r"(\]\(<?)(" + names + r")(?=>?\)|\s+[\"'])",
+            lambda match: match[1] + targets[match[2]],
+            markdown,
+        )
+        staged_md.write_text(markdown, encoding="utf-8")
+        namespace.mkdir()
+    try:
+        for file, path in zip(resources, relative):
+            destination = namespace / path
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            file.rename(destination)
+        # Link atomically without replacing Markdown created after the reservation.
+        os.link(staged_md, dest_md)
+    except BaseException:
+        if resources:
+            shutil.rmtree(namespace, ignore_errors=True)
+        raise
+    return {"md_path": dest_md, "resource_paths": [namespace / path for path in relative]}
 
 
 # ---------------------------------------------------------------------------

@@ -4,9 +4,11 @@ from __future__ import annotations
 import os
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from sami.outputs import (
+    claim_stem,
     make_staging_dir,
     prepend_frontmatter,
     publish,
@@ -99,16 +101,22 @@ class TestReserveStem(unittest.TestCase):
         stem = reserve_stem(pdf, self.out, flat=True)
         self.assertEqual(stem, "paper")
 
-    def test_second_run_same_pdf_reuses_stem(self):
+    def test_overlapping_claims_reserve_distinct_names(self):
+        pdf = self._make_pdf("paper.pdf")
+        with claim_stem(pdf, self.out, flat=False) as first:
+            with claim_stem(pdf, self.out, flat=False) as second:
+                self.assertEqual((first, second), ("paper", "paper_2"))
+        self.assertFalse(list(self.out.glob(".*-sami-claim")))
+
+    def test_second_run_same_pdf_preserves_prior_output(self):
         pdf = self._make_pdf("paper.pdf")
         # Simulate first run: create existing output with sami frontmatter
         dest = self.out / "paper"
         dest.mkdir()
         md = dest / "paper.md"
         md.write_text(prepend_frontmatter("body", source=pdf), encoding="utf-8")
-        # Second run: should return "paper" (owns it)
         stem = reserve_stem(pdf, self.out, flat=False)
-        self.assertEqual(stem, "paper")
+        self.assertEqual(stem, "paper_2")
 
     def test_different_pdf_same_stem_gets_numbered(self):
         pdf_a = self._make_pdf("paper.pdf")
@@ -199,6 +207,22 @@ class TestPublish(unittest.TestCase):
         md = result["md_path"]
         self.assertEqual(md, self.out / "paper.md")
         self.assertTrue(md.exists())
+
+    def test_flat_figures_use_distinct_namespaces(self):
+        for stem, data in (("paper with spaces", b"first"), ("paper with spaces_2", b"second")):
+            staged = self._make_staging(stem, {f"{stem}.md": b"![Figure](_page0.png)", "_page0.png": data})
+            result = publish(staged, stem, self.out, flat=True)
+            self.assertIn(stem.replace(" ", "%20") + "_assets/_page0.png", result["md_path"].read_text())
+            self.assertEqual(result["resource_paths"][0].read_bytes(), data)
+        self.assertEqual((self.out / "paper with spaces_assets" / "_page0.png").read_bytes(), b"first")
+
+    def test_flat_commit_failure_removes_only_its_resources(self):
+        (self.out / "external.png").write_bytes(b"untouched")
+        staged = self._make_staging("paper", {"paper.md": b"![Figure](image.png)", "image.png": b"image"})
+        with patch("sami.outputs.os.link", side_effect=FileExistsError("concurrent file")):
+            with self.assertRaises(FileExistsError):
+                publish(staged, "paper", self.out, flat=True)
+        self.assertEqual([path.name for path in self.out.iterdir() if path != staged], ["external.png"])
 
     def test_resources_published_before_md(self):
         staging = self._make_staging("paper", {
