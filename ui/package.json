@@ -1,0 +1,38 @@
+{
+  "name": "sami-desktop",
+  "productName": "SAMI",
+  "desktopName": "com.dramirezbe.sami.desktop",
+  "version": "0.3.0",
+  "description": "Smart Automated Markdown Interpreter",
+  "author": "SAMI contributors",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "main": "src/main.js",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "npm run build && electron .",
+    "test": "node --test \"tests/*.test.*\"",
+    "test:desktop": "playwright test",
+    "package:win": "npm run build && electron-builder --win nsis --x64 --publish never",
+    "package:linux": "npm run build && electron-builder --linux AppImage --x64 --publish never"
+  },
+  "overrides": {
+    "minimatch@>=7.0.0 <11.0.1": "11.0.9"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.1",
+    "dompurify": "3.5.0",
+    "electron": "45.4.1",
+    "electron-builder": "26.18.0",
+    "esbuild": "0.28.2",
+    "i18next": "27.2.6",
+    "katex": "0.19.1",
+    "markdown-it": "15.0.3",
+    "markdown-it-texmath": "1.0.0",
+    "pdfjs-dist": "6.5.438"
+  }
+}

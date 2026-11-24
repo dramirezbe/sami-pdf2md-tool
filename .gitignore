@@ -6,6 +6,12 @@ __pycache__/
 dist/
 build/
 
+# Electron dependencies and distributables
+ui/node_modules/
+ui/release/
+ui/playwright-report/
+ui/test-results/
+
 # Environment
 .micromamba/
 .venv/

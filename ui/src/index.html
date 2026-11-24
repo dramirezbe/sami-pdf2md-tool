@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>SAMI — Smart Automated Markdown Interpreter</title>
+    <link rel="icon" href="./assets/icons/sami-icon-32.png" type="image/png">
+    <link rel="stylesheet" href="./vendor/katex/katex.min.css">
+    <link rel="stylesheet" href="./styles.css">
+    <script type="module" src="./renderer.js"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand-lockup">
+          <img src="./assets/icons/sami-icon-32.png" width="32" height="32" alt="" class="brand-icon">
+          <div class="brand-copy">
+            <h1 id="app-title">SAMI</h1>
+            <p id="app-subtitle">Smart Automated Markdown Interpreter</p>
+          </div>
+        </div>
+        <div class="topbar-tools">
+          <div class="health-pill" id="health-pill" role="status" aria-live="polite">
+            <span class="health-dot" aria-hidden="true"></span>
+            <span id="health-label">Checking SAMI…</span>
+          </div>
+          <button class="icon-button" id="settings-button" type="button" aria-label="Settings" title="Settings">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.7a3.3 3.3 0 1 0 0 6.6 3.3 3.3 0 0 0 0-6.6Zm8.2 4.7 1.2.9-1.5 2.6-1.4-.5a7.4 7.4 0 0 1-1.5.9l-.2 1.5h-3l-.3-1.5a7.4 7.4 0 0 1-1.5-.9l-1.4.5-1.5-2.6 1.2-.9a7.1 7.1 0 0 1 0-1.8l-1.2-.9 1.5-2.6 1.4.5a7.4 7.4 0 0 1 1.5-.9l.3-1.5h3l.2 1.5a7.4 7.4 0 0 1 1.5.9l1.4-.5 1.5 2.6-1.2.9a7.1 7.1 0 0 1 0 1.8Z"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <main class="main-content">
+        <section class="workspace" id="workspace" aria-label="Conversion workspace">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow" id="workspace-eyebrow">PDF to Markdown</p>
+              <h2 id="workspace-title">Your documents, ready to convert</h2>
+            </div>
+            <div class="toolbar-actions">
+              <button class="button button-secondary" id="browse-files" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14m-7-7h14"/></svg>
+                <span id="browse-files-label">Browse PDFs</span>
+              </button>
+              <button class="button button-secondary" id="add-folder" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5h6l2 2h9v9h-17zM3.5 7.5v-2h7l2 2"/></svg>
+                <span id="add-folder-label">Add folder</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="setup-banner hidden" id="setup-banner" role="status">
+            <div class="banner-copy">
+              <span class="banner-icon" aria-hidden="true">i</span>
+              <div>
+                <strong id="setup-title">SAMI needs a quick setup</strong>
+                <p id="setup-description">Prepare the local models and verify that conversion is ready.</p>
+              </div>
+            </div>
+            <button class="button button-secondary button-small" id="setup-button" type="button">Prepare SAMI</button>
+          </div>
+
+          <div class="drop-zone" id="drop-zone" tabindex="0" role="button" aria-label="Drop PDFs or folders, or browse for files">
+            <div class="drop-illustration" aria-hidden="true">
+              <svg viewBox="0 0 48 48"><path d="M9 7.5h19l10 10v23H9z"/><path d="M28 7.5v10h10M16 28h15M16 34h11"/><path d="M24 20v7m-3.5-3.5L24 20l3.5 3.5"/></svg>
+            </div>
+            <div class="drop-copy">
+              <h3 id="drop-title">Drop PDFs or folders here</h3>
+              <p id="drop-subtitle">Add as many as you need. You can review the list before converting.</p>
+            </div>
+            <button class="button button-primary" id="drop-browse" type="button">Choose files</button>
+          </div>
+
+          <section class="selection-panel" aria-labelledby="selection-title">
+            <div class="panel-heading">
+              <div>
+                <h3 id="selection-title">Selected items</h3>
+                <p id="selection-summary">No files selected yet</p>
+              </div>
+              <button class="text-button hidden" id="clear-selection" type="button">Clear all</button>
+            </div>
+            <div class="file-list empty" id="file-list" aria-live="polite">
+              <div class="empty-state" id="empty-state">
+                <span class="empty-folder" aria-hidden="true">
+                  <svg viewBox="0 0 32 32"><path d="M4 8h9l3 3h12v14H4zM4 8V6h10l3 2"/></svg>
+                </span>
+                <span id="empty-copy">Your selected files will appear here</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="options-panel" aria-labelledby="options-title">
+            <div class="options-heading">
+              <h3 id="options-title">Conversion options</h3>
+              <p id="mode-help">Balanced works well for most documents.</p>
+            </div>
+            <div class="options-grid">
+              <label class="field-label" for="mode-select"><span id="mode-label">Mode</span>
+                <select id="mode-select">
+                  <option value="balanced">Balanced</option>
+                  <option value="fast">Fast</option>
+                  <option value="quality">Quality</option>
+                </select>
+              </label>
+              <div class="option-toggles">
+                <label class="toggle-row" for="recursive-toggle">
+                  <input id="recursive-toggle" type="checkbox">
+                  <span class="toggle-control" aria-hidden="true"></span>
+                  <span id="recursive-label">Include subfolders</span>
+                </label>
+                <label class="toggle-row" for="flat-toggle">
+                  <input id="flat-toggle" type="checkbox">
+                  <span class="toggle-control" aria-hidden="true"></span>
+                  <span id="flat-label">Keep results in one folder</span>
+                </label>
+              </div>
+            </div>
+            <div class="output-row">
+              <div class="output-copy">
+                <span class="output-label" id="output-label">Save results</span>
+                <span class="output-path" id="output-path">Each PDF's folder</span>
+              </div>
+              <button class="button button-tertiary button-small" id="choose-output" type="button">Choose folder</button>
+              <button class="text-button hidden" id="clear-output" type="button">Clear</button>
+            </div>
+          </section>
+
+          <div class="compatibility-note hidden" id="compatibility-note" role="status"></div>
+          <div class="error-banner hidden" id="error-banner" role="alert"></div>
+          <div class="primary-actions">
+            <span class="selection-count" id="selection-count">0 files</span>
+            <button class="button button-primary button-large" id="convert-button" type="button" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 10 6-10 6z"/></svg>
+              <span id="convert-label">Convert</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="run-view hidden" id="run-view" aria-labelledby="run-heading">
+          <div class="run-header">
+            <div>
+              <p class="eyebrow" id="run-eyebrow">Your batch</p>
+              <h2 id="run-heading">Conversion in progress</h2>
+            </div>
+            <div class="run-elapsed"><span class="activity-dot" aria-hidden="true"></span><span id="elapsed-label">00:00</span></div>
+          </div>
+          <section class="run-card">
+            <div class="overall-progress-head">
+              <span id="overall-label">Overall progress</span>
+              <strong id="overall-count">0 of 0 files</strong>
+            </div>
+            <div class="progress-track" id="overall-track" role="progressbar" aria-label="Overall progress" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
+              <span class="progress-fill" id="overall-fill"></span>
+            </div>
+            <div class="active-document">
+              <div class="file-glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 2.75h9l5 5V21H5zM14 2.75v5h5M8 13h8M8 16.5h6"/></svg></div>
+              <div class="active-document-copy">
+                <strong id="active-file">Starting…</strong>
+                <div class="stage-line"><span class="spinner" aria-hidden="true"></span><span id="active-stage">Preparing conversion</span></div>
+              </div>
+              <span class="document-elapsed" id="document-elapsed">00:00</span>
+            </div>
+            <div class="stage-progress-track indeterminate" id="stage-track" role="progressbar" aria-label="Current stage progress" aria-valuemin="0" aria-valuemax="100">
+              <span class="stage-progress-fill" id="stage-fill"></span>
+            </div>
+            <p class="waiting-notice hidden" id="waiting-notice" role="status"></p>
+            <div class="queue-row"><span id="queue-copy">0 files waiting</span><span id="effective-device"></span></div>
+          </section>
+          <details class="diagnostics-panel" id="diagnostics-panel">
+            <summary id="diagnostics-summary">Technical details</summary>
+            <pre id="diagnostics-log" aria-live="polite"></pre>
+          </details>
+          <div class="run-actions">
+            <span class="cancel-note" id="cancel-note">Your files are kept on this device.</span>
+            <button class="button button-danger" id="cancel-button" type="button">Cancel conversion</button>
+          </div>
+        </section>
+
+        <section class="results-view hidden" id="results-view" aria-labelledby="results-heading">
+          <div class="results-header">
+            <div>
+              <p class="eyebrow" id="results-eyebrow">Conversion complete</p>
+              <h2 id="results-heading">Your results are ready</h2>
+              <p class="results-summary" id="results-summary"></p>
+            </div>
+            <div class="results-header-actions">
+              <button class="button button-secondary" id="new-batch-button" type="button">Convert more</button>
+            </div>
+          </div>
+          <div class="results-layout">
+            <section class="result-list-panel" aria-labelledby="result-list-heading">
+              <h3 id="result-list-heading">Converted files</h3>
+              <div id="result-list" class="result-list"></div>
+            </section>
+            <section class="preview-panel" aria-label="Document preview">
+              <div class="preview-toolbar">
+                <div class="preview-tabs" role="tablist" aria-label="Preview type">
+                  <button class="preview-tab active" id="preview-markdown-tab" type="button" role="tab" aria-selected="true">Markdown</button>
+                  <button class="preview-tab" id="preview-pdf-tab" type="button" role="tab" aria-selected="false">PDF</button>
+                </div>
+                <button class="icon-button preview-close" id="close-preview" type="button" aria-label="Close preview" title="Close preview">×</button>
+              </div>
+              <div class="preview-file-label" id="preview-file-label"></div>
+              <div class="preview-empty" id="preview-empty">
+                <span class="preview-empty-icon" aria-hidden="true">↖</span>
+                <p id="preview-empty-copy">Choose a converted file to preview it here.</p>
+              </div>
+              <div class="markdown-preview hidden" id="markdown-preview" tabindex="0"></div>
+              <div class="pdf-preview hidden" id="pdf-preview">
+                <div class="pdf-controls">
+                  <button class="icon-button" id="pdf-prev" type="button" aria-label="Previous page">‹</button>
+                  <span id="pdf-page-label">1 / 1</span>
+                  <button class="icon-button" id="pdf-next" type="button" aria-label="Next page">›</button>
+                  <span class="pdf-control-spacer"></span>
+                  <button class="icon-button" id="pdf-zoom-out" type="button" aria-label="Zoom out">−</button>
+                  <span id="pdf-zoom-label">100%</span>
+                  <button class="icon-button" id="pdf-zoom-in" type="button" aria-label="Zoom in">+</button>
+                </div>
+                <div class="pdf-canvas-wrap" id="pdf-canvas-wrap"><canvas id="pdf-canvas"></canvas></div>
+              </div>
+              <div class="preview-actions hidden" id="preview-actions">
+                <button class="button button-secondary button-small" id="open-result-folder" type="button">Open folder</button>
+                <button class="button button-tertiary button-small" id="export-result" type="button">Export result</button>
+                <button class="button button-tertiary button-small" id="drag-result" type="button" draggable="true">Drag result</button>
+              </div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+    <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
+    <dialog id="settings-dialog" class="settings-dialog">
+      <form method="dialog" class="settings-form">
+        <div class="dialog-heading"><div><p class="eyebrow" id="settings-eyebrow">Preferences</p><h2 id="settings-heading">Settings</h2></div><button class="icon-button" value="close" aria-label="Close">×</button></div>
+        <label class="field-label" for="language-select"><span id="language-label">Language</span>
+          <select id="language-select"><option value="en">English</option><option value="es">Español</option></select>
+        </label>
+        <label class="field-label" for="theme-select"><span id="theme-label">Appearance</span>
+          <select id="theme-select"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select>
+        </label>
+        <button class="button button-primary dialog-done" value="close" id="settings-done">Done</button>
+      </form>
+    </dialog>
+  </body>
+</html>
