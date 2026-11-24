@@ -12,7 +12,11 @@ const fixture = fileURLToPath(new URL('./fixtures/fake-sami-cli.cjs', import.met
 
 async function installation(t, { version = '0.2.4', protocol = 1, identity = 'fake-install-id' } = {}) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'sami-ui-runner-'));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  let runner;
+  t.after(async () => {
+    await runner?.shutdown();
+    await rm(root, { recursive: true, force: true, maxRetries: 12, retryDelay: 100 });
+  });
   const home = path.join(root, 'sami home');
   await mkdir(home, { recursive: true });
   const executable = process.execPath;
@@ -23,7 +27,7 @@ async function installation(t, { version = '0.2.4', protocol = 1, identity = 'fa
     protocol_version: protocol,
     executable,
   }));
-  const runner = new CliRunner({
+  runner = new CliRunner({
     env: {
       ...process.env,
       SAMI_HOME: home,
@@ -38,7 +42,6 @@ async function installation(t, { version = '0.2.4', protocol = 1, identity = 'fa
       ? spawn(program, args, options)
       : spawn(process.execPath, [fixture, ...args], options),
   });
-  t.after(() => runner.shutdown());
   return { root, home, executable, runner };
 }
 
@@ -134,7 +137,7 @@ test('stall activity reports elapsed time and missing updates while the CLI is a
   await operation.completion;
 });
 
-test('cancellation timeout terminates the owned POSIX process group and reports a missing terminal event', async (t) => {
+test('cancellation timeout terminates the owned CLI and reports a missing terminal event', async (t) => {
   const { runner } = await installation(t);
   runner.env.FAKE_MODE = 'hang';
   const states = [];
