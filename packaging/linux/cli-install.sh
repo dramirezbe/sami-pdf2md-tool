@@ -37,6 +37,7 @@ assert all(health["modes"][name]["available"] and health["modes"][name]["ready"]
 
 install_cli() {
     local uv executable tool_dir cli_python registration python_record parser_python registered_python registered_executable wheel actual_wheel_hash
+    local -a install_args
     uv="$(find_uv)"
     tool_dir="$("$uv" tool dir)"
     executable="$("$uv" tool dir --bin)/sami"
@@ -73,7 +74,11 @@ install_cli() {
             if [[ ! -x "$executable" ]]; then executable="$(dirname "$cli_python")/sami"; fi
         else
             info 'Installing SAMI CLI...'
-            "$uv" tool install --python 3.12 --force "$wheel"
+            install_args=(tool install --python 3.12 --force)
+            if [[ "$(uname -s)" == Linux ]] && "$uv" tool install --help | grep -F -- '--torch-backend' >/dev/null; then
+                install_args+=(--torch-backend "${UV_TORCH_BACKEND:-auto}")
+            fi
+            "$uv" "${install_args[@]}" "$wheel"
             executable="$("$uv" tool dir --bin)/sami"
             cli_python="$("$uv" tool dir)/sami-pdf2md-tool/bin/python"
         fi
