@@ -23,7 +23,7 @@ component=all
 if [[ "$ACTION" == "update" ]]; then
     component=cli
     shift
-elif [[ "$ACTION" == "install" ]]; then
+elif [[ "$ACTION" == "install" && $# -gt 0 ]]; then
     shift
 fi
 while (($#)); do
