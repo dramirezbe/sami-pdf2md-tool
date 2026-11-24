@@ -1,0 +1,105 @@
+/* SAMI Design Tokens — CSS Custom Properties
+   Import this file in your app's root stylesheet.
+   Use [data-theme="dark"] on <html> or <body> to switch themes. */
+
+
+:root {
+  /* ── Brand ── */
+  --sami-brand:            #7B6DAF;
+  --sami-brand-hover:      #6A5D98;
+  --sami-brand-active:     #5C5087;
+  --sami-brand-subtle:     rgba(123, 109, 175, 0.08);
+  --sami-on-brand:         #FFFFFF;
+
+  /* ── Semantic ── */
+  --sami-success:          #62C554;
+  --sami-success-subtle:   rgba(98, 197, 84, 0.08);
+  --sami-warning:          #E5A63B;
+  --sami-warning-subtle:   rgba(229, 166, 59, 0.08);
+  --sami-error:            #E24B4A;
+  --sami-error-subtle:     rgba(226, 75, 74, 0.08);
+  --sami-info:             #4A9FD9;
+  --sami-info-subtle:      rgba(74, 159, 217, 0.08);
+  --sami-pdf:              #E24B4A;
+
+  /* ── Typography ── */
+  --sami-font-body:        'Inter', system-ui, -apple-system, sans-serif;
+  --sami-font-heading:     'Space Grotesk', 'Inter', system-ui, sans-serif;
+  --sami-font-mono:        'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+
+  /* ── Spacing ── */
+  --sami-space-xs:   4px;
+  --sami-space-sm:   8px;
+  --sami-space-md:   10px;
+  --sami-space-base: 16px;
+  --sami-space-lg:   24px;
+  --sami-space-xl:   32px;
+  --sami-space-2xl:  48px;
+
+  /* ── Radius ── */
+  --sami-radius-sm:   4px;
+  --sami-radius-base: 6px;
+  --sami-radius-md:   8px;
+  --sami-radius-lg:   10px;
+
+  /* ── Components ── */
+  --sami-chrome-height:    36px;
+  --sami-toolbar-height:   48px;
+  --sami-button-height:    32px;
+  --sami-button-radius:    6px;
+  --sami-sidebar-width:    300px;
+  --sami-progress-height:  6px;
+
+  /* ── Light theme (default) ── */
+  --sami-bg-window:        #F0F0F0;
+  --sami-bg-surface:       #FFFFFF;
+  --sami-bg-raised:        #FAFAFA;
+  --sami-bg-inset:         #F5F5F5;
+  --sami-border:           #E5E5E5;
+  --sami-border-subtle:    #F0F0F0;
+  --sami-text-primary:     #1A1A1A;
+  --sami-text-secondary:   #777777;
+  --sami-text-tertiary:    #999999;
+  --sami-text-disabled:    #BBBBBB;
+  --sami-accent:           #7B6DAF;
+  --sami-shadow-sm:        0 1px 2px rgba(0,0,0,0.06);
+  --sami-shadow-md:        0 2px 8px rgba(0,0,0,0.08);
+  --sami-shadow-lg:        0 4px 16px rgba(0,0,0,0.1);
+}
+
+[data-theme="dark"] {
+  --sami-bg-window:        #1A1A1A;
+  --sami-bg-surface:       #1E1E1E;
+  --sami-bg-raised:        #252525;
+  --sami-bg-inset:         #2A2A2A;
+  --sami-border:           #333333;
+  --sami-border-subtle:    #2A2A2A;
+  --sami-text-primary:     #E0E0E0;
+  --sami-text-secondary:   #999999;
+  --sami-text-tertiary:    #777777;
+  --sami-text-disabled:    #555555;
+  --sami-accent:           #9B8DC8;
+  --sami-shadow-sm:        0 1px 2px rgba(0,0,0,0.2);
+  --sami-shadow-md:        0 2px 8px rgba(0,0,0,0.3);
+  --sami-shadow-lg:        0 4px 16px rgba(0,0,0,0.4);
+}
+
+/* ── Prefers dark ── */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --sami-bg-window:        #1A1A1A;
+    --sami-bg-surface:       #1E1E1E;
+    --sami-bg-raised:        #252525;
+    --sami-bg-inset:         #2A2A2A;
+    --sami-border:           #333333;
+    --sami-border-subtle:    #2A2A2A;
+    --sami-text-primary:     #E0E0E0;
+    --sami-text-secondary:   #999999;
+    --sami-text-tertiary:    #777777;
+    --sami-text-disabled:    #555555;
+    --sami-accent:           #9B8DC8;
+    --sami-shadow-sm:        0 1px 2px rgba(0,0,0,0.2);
+    --sami-shadow-md:        0 2px 8px rgba(0,0,0,0.3);
+    --sami-shadow-lg:        0 4px 16px rgba(0,0,0,0.4);
+  }
+}
