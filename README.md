@@ -16,6 +16,8 @@ The `0.3.0` distribution targets native Windows with a per-user installer and Li
 
 With the desktop release available, the quick installers below prepare the CLI and install the desktop app. Windows adds SAMI to **Installed apps**, **Start**, and the desktop. Linux adds SAMI to the application menu.
 
+On Arch Linux, install the `openssl-3` runtime package if your system has OpenSSL 4 only. The llama.cpp runtime used by SAMI links against OpenSSL 3.
+
 To run the desktop app from a development checkout, first prepare the installed CLI with `sami setup`, then use Node.js 24 and npm.
 
 ```bash

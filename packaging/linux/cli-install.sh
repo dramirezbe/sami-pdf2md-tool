@@ -44,6 +44,13 @@ import importlib.util
 from pathlib import Path
 
 try:
+    ctypes.CDLL("libssl.so.3")
+except OSError:
+    if Path("/etc/arch-release").exists():
+        raise SystemExit("SAMI needs the OpenSSL 3 runtime. Run sudo pacman -S --needed openssl-3, then retry.")
+    raise SystemExit("SAMI needs the OpenSSL 3 runtime (libssl.so.3). Install your distribution's OpenSSL 3 compatibility package, then retry.")
+
+try:
     ctypes.CDLL("libgomp.so.1")
 except OSError:
     pass

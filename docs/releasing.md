@@ -9,7 +9,7 @@ From `ui/`, run `npm ci`, `npm test`, `npm run build`, and `npm run test:desktop
 | Platform | Package | Acceptance checks |
 |---|---|---|
 | Native Windows x64 | `npm run package:win` | Run the NSIS installer with the pinned CLI. Check Installed apps, Start, and the desktop shortcut. Launch from the installed path. Uninstall the app and verify `sami --version`. |
-| Linux x64 | `npm run package:linux` | Verify the AppImage and its application menu entry on Arch Linux and Debian 13. Check that UI removal preserves the CLI and results. |
+| Linux x64 | `npm run package:linux` | Verify the AppImage and its application menu entry on Arch Linux and Debian 13. Include Arch's `openssl-3` runtime when validating on an OpenSSL 4 system. Check that UI removal preserves the CLI and results. |
 
 Run `--smoke-test` on each packaged executable to verify Electron and the bundled renderer start. For an AppImage host without FUSE, run it with `--appimage-extract-and-run`.
 
