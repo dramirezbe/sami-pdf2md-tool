@@ -184,7 +184,7 @@ Comment=Smart Automated Markdown Interpreter
 Exec="$appimage" --appimage-extract-and-run
 Icon=$ICON_NAME
 Terminal=false
-Categories=Office;Utility;
+Categories=Office;
 StartupWMClass=sami
 EOF
             install -m 644 "$desktop_tmp" "$data_dir/applications/$APP_ID"
