@@ -122,7 +122,7 @@ Read the absolute `executable` path and `installation_id` from `installation.jso
 
 Conversion writes UTF-8 JSON Lines to stdout and human-readable progress to stderr. Read `run_started` for the run ID and `inputs_resolved` for the ordered input list and any selection issues. Use `job_finished.data.result` for terminal status and published output paths. During a retry, `job_retrying` carries the same job ID with the next attempt number. `run_finished` reports the totals and exit code.
 
-To cancel, send a newline-terminated command to stdin using the active run ID.
+To cancel from a controller, send a newline-terminated command through the CLI's stdin pipe using the active run ID. Use Ctrl+C in an interactive terminal.
 
 ```json
 {"protocol_version":1,"command":"cancel","run_id":"<active run ID>"}

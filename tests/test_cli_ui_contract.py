@@ -148,7 +148,10 @@ with patch('sami.engines.convert', side_effect=slow):
                 if use_stdin:
                     command = {"protocol_version": 1, "command": "cancel", "run_id": started[0]["run_id"]}
                     worker.stdin.write(json.dumps({**command, "run_id": "other-run"}) + "\n")
-                    worker.stdin.write(json.dumps(command) + "\n")
+                    line = json.dumps(command) + "\n"
+                    worker.stdin.write(line[:16])
+                    worker.stdin.flush()
+                    worker.stdin.write(line[16:])
                     worker.stdin.flush()
                 else:
                     worker.send_signal(signal.SIGINT)
