@@ -36,6 +36,41 @@ assert all(health["modes"][name]["available"] and health["modes"][name]["ready"]
 ' "$temporary_dir/health.json" "$CLI_VERSION" >/dev/null 2>&1
 }
 
+prepare_linux_runtime() {
+    [[ "$(uname -s)" == Linux ]] || return 0
+    "$1" -I - <<'PY'
+import ctypes
+import importlib.util
+from pathlib import Path
+
+try:
+    ctypes.CDLL("libgomp.so.1")
+except OSError:
+    pass
+else:
+    raise SystemExit(0)
+
+from sami.diagnostics import app_home
+from sami.llama_runtime import ensure_server
+
+torch = importlib.util.find_spec("torch")
+openmp = Path(torch.origin).parent / "lib" / "libgomp.so.1" if torch and torch.origin else None
+if openmp is None or not openmp.is_file():
+    raise SystemExit("SAMI needs the OpenMP runtime libgomp.so.1. Install libgomp1 on Debian/Ubuntu and retry.")
+
+home = app_home()
+server, _ = ensure_server(home, want_cuda=False, logger=print)
+if server is None:
+    raise SystemExit("Could not provision the local llama-server.")
+for variant in ("cpu", "cuda"):
+    folder = home / "bin" / variant
+    if (folder / "llama-server").is_file():
+        library = folder / "libgomp.so.1"
+        if not library.exists() and not library.is_symlink():
+            library.symlink_to(openmp)
+PY
+}
+
 install_cli() {
     local uv executable tool_dir cli_python registration python_record parser_python registered_python registered_executable wheel actual_wheel_hash
     local -a install_args
@@ -88,6 +123,7 @@ install_cli() {
     fi
 
     if ! validate_cli "$executable" "$cli_python"; then
+        prepare_linux_runtime "$cli_python"
         info 'Preparing local models and verifying the CPU modes...'
         "$executable" setup --json
     fi
