@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sami-pdf2md-tool"
-version = "0.2.1"
+version = "0.2.2"
 description = "Smart Automated Markdown Interpreter — convert PDFs to Markdown with figures"
 requires-python = ">=3.11,<3.14"
 license = "MIT"

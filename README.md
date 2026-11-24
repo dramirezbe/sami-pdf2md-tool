@@ -18,19 +18,33 @@ This installs `uv` (if missing) and `sami` globally. On first use, SAMI download
 
 ### Windows PowerShell
 
-Run the installer from the cloned repository:
+Install from PowerShell 5.1 or later:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\install.ps1
+$repo = 'dramirezbe/sami-pdf2md-tool'
+$ref = 'fix/wsl-cuda-runtime'
+$installer = irm "https://raw.githubusercontent.com/$repo/refs/heads/$ref/install.ps1"
+& ([scriptblock]::Create($installer)) -Source "git+https://github.com/${repo}.git@$ref"
 ```
 
-Open a new PowerShell window so it picks up the updated PATH:
+Verify the installation and convert a PDF:
 
 ```powershell
+sami --version
 sami paper.pdf --mode balanced
 ```
 
-On x64 with an NVIDIA driver that supports CUDA 13.2 or later, the installer downloads the PyTorch CUDA wheel directly from PyTorch and verifies its SHA-256. To install a built wheel, pass its path with `-Source`.
+On x64 with an NVIDIA driver that supports CUDA 13.2 or later, the installer downloads the PyTorch CUDA wheel directly from PyTorch and verifies its SHA-256. For a local wheel, use its path as the value of `-Source`.
+
+### Upgrade an installed CLI
+
+```shell
+sami upgrade
+```
+
+The command fetches the installer with `irm` on Windows or `curl` on Linux. It updates SAMI in its existing Python environment and reuses compatible dependencies, including PyTorch. Model caches stay in place.
+
+By default, the command follows the installed Git ref, or `main` for a wheel install. To choose a different branch, tag, or commit, run `sami upgrade --ref <ref>`. On Windows, wait for the installer to report completion before starting another SAMI command.
 
 ### Other install methods
 

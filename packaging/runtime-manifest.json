@@ -1,6 +1,6 @@
 {
   "schema_version": "1",
-  "sami_version": "0.2.0",
+  "sami_version": "0.2.2",
   "python": {
     "required": ">=3.11,<3.14",
     "pinned": "3.12.13",

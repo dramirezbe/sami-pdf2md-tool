@@ -1,10 +1,30 @@
 #Requires -Version 5.1
+# SAMI_UPGRADE_V1
 [CmdletBinding()]
 param(
-    [string] $Source
+    [string] $Source,
+    [string] $UpgradePython,
+    [string] $UpgradeIndex
 )
 
 $ErrorActionPreference = 'Stop'
+
+if ($UpgradePython) {
+    if (-not $Source) {
+        throw 'Run sami upgrade from the installed CLI.'
+    }
+    $upgradeArgs = @('pip', 'install', '--python', $UpgradePython, '--upgrade-package', 'sami-pdf2md-tool')
+    if ($UpgradeIndex) {
+        $upgradeArgs += @('--index', $UpgradeIndex)
+    }
+    Write-Host 'Updating SAMI in its existing environment...'
+    uv @upgradeArgs $Source
+    if ($LASTEXITCODE -ne 0) {
+        throw "SAMI upgrade failed (exit $LASTEXITCODE)."
+    }
+    Write-Host 'SAMI upgraded.'
+    return
+}
 
 function Test-NvidiaCuda {
     if (-not (Get-Command nvidia-smi -ErrorAction SilentlyContinue)) {

@@ -411,10 +411,15 @@ def _main(argv: list[str] | None, runtime: contextlib.ExitStack) -> int:
     raw_argv = argv if argv is not None else sys.argv[1:]
     if raw_argv and raw_argv[0] == "health":
         return _health_command(raw_argv[1:])
+    if raw_argv and raw_argv[0] == "upgrade":
+        from sami.upgrade import upgrade_command
+
+        return upgrade_command(raw_argv[1:])
 
     parser = argparse.ArgumentParser(
         prog="sami",
         description="Convert PDF files to Markdown with extracted figures.",
+        epilog="Use 'sami upgrade' to update the installed CLI.",
     )
     from sami import __version__
     parser.add_argument(

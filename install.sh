@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SAMI_UPGRADE_V1
 # sami — one-line installer & updater
 # Install: curl -fsSL https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.sh | bash
 # Update:  curl -fsSL https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.sh | bash -s update
@@ -17,6 +18,21 @@ info() { echo "[sami] $*"; }
 error() { echo "[sami] ERROR: $*" >&2; exit 1; }
 
 ACTION="${1:-install}"
+
+if [[ "$ACTION" == "upgrade" ]]; then
+    python="${2:-}"
+    source="${3:-}"
+    index="${4:-}"
+    [[ -n "$python" && -n "$source" ]] || error "Run sami upgrade from the installed CLI."
+    args=(pip install --python "$python" --upgrade-package sami-pdf2md-tool)
+    if [[ -n "$index" ]]; then
+        args+=(--index "$index")
+    fi
+    info "Updating SAMI in its existing environment..."
+    uv "${args[@]}" "$source"
+    info "SAMI upgraded."
+    exit 0
+fi
 
 # 1. Check Python >= 3.11 exists
 if ! command -v python3 &>/dev/null; then
