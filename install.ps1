@@ -116,23 +116,29 @@ try {
         }
         $asset = "SAMI-$uiVersion-win-x64-setup.exe"
         $releaseUrl = "https://github.com/$repository/releases/download/v$uiVersion"
+        $releaseApi = "https://api.github.com/repos/$repository/releases/tags/v$uiVersion"
         $installer = Join-Path $temporaryDirectory $asset
         $sumFile = Join-Path $temporaryDirectory 'SHA256SUMS'
         try {
-            Write-Host 'Downloading the SAMI desktop app...'
-            Invoke-WebRequest -UseBasicParsing -Uri "$releaseUrl/$asset" -OutFile $installer -TimeoutSec 300
-            Invoke-WebRequest -UseBasicParsing -Uri "$releaseUrl/SHA256SUMS" -OutFile $sumFile -TimeoutSec 60
+            $null = Invoke-RestMethod -UseBasicParsing -Uri $releaseApi -TimeoutSec 20
         } catch {
             $statusCode = $null
             if ($_.Exception.Response -and $_.Exception.Response.StatusCode) {
                 $statusCode = [int]$_.Exception.Response.StatusCode
             }
-            if ($Component -eq 'all' -and $statusCode -eq 404) {
-                Write-Warning "SAMI CLI is ready. The SAMI $uiVersion desktop release is not published yet."
-                return
+            if ($statusCode -eq 404) {
+                $message = "The SAMI $uiVersion desktop release is not published yet."
+                if ($Component -eq 'all') {
+                    Write-Warning "SAMI CLI is ready. $message"
+                    return
+                }
+                throw $message
             }
             throw
         }
+        Write-Host 'Downloading the SAMI desktop app...'
+        Invoke-WebRequest -UseBasicParsing -Uri "$releaseUrl/$asset" -OutFile $installer -TimeoutSec 300
+        Invoke-WebRequest -UseBasicParsing -Uri "$releaseUrl/SHA256SUMS" -OutFile $sumFile -TimeoutSec 60
         $expected = Select-String -Path $sumFile -Pattern ("^([0-9a-fA-F]{64})\s+\*?" + [regex]::Escape($asset) + '$') |
             Select-Object -First 1
         if (-not $expected) { throw 'The desktop app checksum is missing from SHA256SUMS.' }
