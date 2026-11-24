@@ -44,10 +44,14 @@ while (($#)); do
     esac
 done
 
-script_source="${BASH_SOURCE[0]:-.}"
-script_directory="$(cd -- "$(dirname -- "$script_source")" && pwd)"
-helper="$script_directory/packaging/linux/cli-install.sh"
-if [[ ! -f "$helper" ]]; then
+helper=
+if [[ -n "${BASH_SOURCE[0]:-}" ]]; then
+    script_directory="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+    for candidate in "$script_directory/packaging/linux/cli-install.sh" "$script_directory/cli-install-linux.sh"; do
+        if [[ -f "$candidate" ]]; then helper="$candidate"; break; fi
+    done
+fi
+if [[ -z "$helper" ]]; then
     temporary_helper="$(mktemp "${TMPDIR:-/tmp}/sami-cli-install.XXXXXX")"
     trap 'rm -f "$temporary_helper"' EXIT
     helper_url="https://raw.githubusercontent.com/$REPOSITORY/main/packaging/linux/cli-install.sh"

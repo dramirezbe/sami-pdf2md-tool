@@ -13,6 +13,15 @@ $ErrorActionPreference = 'Stop'
 $repository = 'dramirezbe/sami-pdf2md-tool'
 $uiVersion = '0.3.0'
 
+function Get-SamiArchitecture {
+    try { $architecture = [string][System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture }
+    catch { $architecture = '' }
+    if (-not $architecture) { $architecture = $env:PROCESSOR_ARCHITEW6432 }
+    if (-not $architecture) { $architecture = $env:PROCESSOR_ARCHITECTURE }
+    if ($architecture -eq 'AMD64') { return 'X64' }
+    return $architecture
+}
+
 function Ensure-Uv {
     if (Get-Command uv -ErrorAction SilentlyContinue) { return }
     Write-Host 'Installing uv...'
@@ -44,7 +53,7 @@ try {
         Ensure-Uv
         Write-Host 'Installing SAMI from the requested source...'
         $installArgs = @('tool', 'install', '--python', '3.12', '--force')
-        $architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
+        $architecture = Get-SamiArchitecture
         $cuda = $false
         if ($architecture -eq 'X64' -and (Get-Command nvidia-smi -ErrorAction SilentlyContinue)) {
             $summary = nvidia-smi 2>$null | Out-String
@@ -73,17 +82,18 @@ try {
         return
     }
 
-    $localRoot = $PSScriptRoot
-    if (-not $localRoot) {
-        $candidateRoot = (Get-Location).Path
-        if (Test-Path -LiteralPath (Join-Path $candidateRoot 'pyproject.toml')) { $localRoot = $candidateRoot }
+    $helper = $null
+    if ($PSScriptRoot) {
+        foreach ($relativePath in @('packaging\windows\cli-install.ps1', 'cli-install-windows.ps1')) {
+            $candidate = Join-Path $PSScriptRoot $relativePath
+            if (Test-Path -LiteralPath $candidate -PathType Leaf) { $helper = $candidate; break }
+        }
     }
-    $helper = if ($localRoot) { Join-Path $localRoot 'packaging\windows\cli-install.ps1' } else { $null }
-    if (-not $helper -or -not (Test-Path -LiteralPath $helper)) {
+    if (-not $helper) {
         $helper = Join-Path $temporaryDirectory 'cli-install.ps1'
         $helperUrl = "https://raw.githubusercontent.com/$repository/main/packaging/windows/cli-install.ps1"
         Write-Host 'Fetching the shared CLI installation steps...'
-        Invoke-WebRequest -Uri $helperUrl -OutFile $helper -TimeoutSec 60
+        Invoke-WebRequest -UseBasicParsing -Uri $helperUrl -OutFile $helper -TimeoutSec 60
     }
 
     if ($Component -in @('cli', 'all')) {
@@ -92,7 +102,7 @@ try {
     }
 
     if ($Component -in @('ui', 'all')) {
-        $architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
+        $architecture = Get-SamiArchitecture
         if ($architecture -ne 'X64') {
             if ($Component -eq 'all') {
                 Write-Warning 'The SAMI CLI is ready. The SAMI desktop installer currently supports Windows x64 only.'
@@ -110,8 +120,8 @@ try {
         $sumFile = Join-Path $temporaryDirectory 'SHA256SUMS'
         try {
             Write-Host 'Downloading the SAMI desktop app...'
-            Invoke-WebRequest -Uri "$releaseUrl/$asset" -OutFile $installer -TimeoutSec 300
-            Invoke-WebRequest -Uri "$releaseUrl/SHA256SUMS" -OutFile $sumFile -TimeoutSec 60
+            Invoke-WebRequest -UseBasicParsing -Uri "$releaseUrl/$asset" -OutFile $installer -TimeoutSec 300
+            Invoke-WebRequest -UseBasicParsing -Uri "$releaseUrl/SHA256SUMS" -OutFile $sumFile -TimeoutSec 60
         } catch {
             $statusCode = $null
             if ($_.Exception.Response -and $_.Exception.Response.StatusCode) {

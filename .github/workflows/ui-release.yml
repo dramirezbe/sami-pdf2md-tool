@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths: ['ui/**', 'packaging/**', 'install.sh', 'install.ps1', '.github/workflows/ui-release.yml']
   push:
+    branches: [feat/0_3_0_sami_ui]
     tags: [v0.3.0]
   workflow_dispatch:
 

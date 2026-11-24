@@ -78,7 +78,7 @@ $null = New-Item -ItemType Directory -Path $tempDirectory
 $wheel = Join-Path $tempDirectory $wheelName
 try {
     Write-Step 'Downloading the verified SAMI CLI package...'
-    Invoke-WebRequest -Uri $wheelUrl -OutFile $wheel -TimeoutSec 120
+    Invoke-WebRequest -UseBasicParsing -Uri $wheelUrl -OutFile $wheel -TimeoutSec 120
     $actualHash = (Get-FileHash -LiteralPath $wheel -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($actualHash -ne $wheelSha256) { throw 'The SAMI CLI package checksum does not match the release manifest.' }
 
@@ -97,7 +97,11 @@ try {
             $cudaVersion = [regex]::Match($cudaSummary, 'CUDA(?: UMD)? Version:\s*(\d+\.\d+)')
             $cuda = $LASTEXITCODE -eq 0 -and $cudaVersion.Success -and ([version]$cudaVersion.Groups[1].Value -ge [version]'13.2')
         }
-        if ($cuda -and [Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq 'X64') {
+        try { $architecture = [string][Runtime.InteropServices.RuntimeInformation]::OSArchitecture }
+        catch { $architecture = '' }
+        if (-not $architecture) { $architecture = $env:PROCESSOR_ARCHITEW6432 }
+        if (-not $architecture) { $architecture = $env:PROCESSOR_ARCHITECTURE }
+        if ($cuda -and $architecture -in @('X64', 'AMD64')) {
             $torchUrl = 'https://download.pytorch.org/whl/cu132/torch-2.14.1%2Bcu132-cp312-cp312-win_amd64.whl'
             $torchSha256 = '882a670a7e2a17f2eb351406dc4a235455fd9256ac737752de5f1279e2a1df8c'
             $installArguments += @(
