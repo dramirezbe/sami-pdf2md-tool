@@ -22,7 +22,7 @@ Install from PowerShell 5.1 or later:
 
 ```powershell
 $repo = 'dramirezbe/sami-pdf2md-tool'
-$ref = 'fix/wsl-cuda-runtime'
+$ref = 'main'
 $installer = irm "https://raw.githubusercontent.com/$repo/refs/heads/$ref/install.ps1"
 & ([scriptblock]::Create($installer)) -Source "git+https://github.com/${repo}.git@$ref"
 ```
