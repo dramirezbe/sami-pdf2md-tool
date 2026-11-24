@@ -30,16 +30,12 @@ if [[ "$ACTION" == "upgrade" ]]; then
     fi
     info "Updating SAMI in its existing environment..."
     uv "${args[@]}" "$source"
+    "$python" -I -m sami.cli setup --register-only
     info "SAMI upgraded."
     exit 0
 fi
 
-# 1. Check Python >= 3.11 exists
-if ! command -v python3 &>/dev/null; then
-    error "python3 not found. Install Python 3.11+ first."
-fi
-
-# 2. Ensure uv is available
+# 1. Ensure uv is available. It provisions Python for the tool environment.
 if ! command -v uv &>/dev/null; then
     info "uv not found, installing..."
     curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -50,7 +46,7 @@ if ! command -v uv &>/dev/null; then
     info "uv installed."
 fi
 
-# 3. Install or update sami (rewrites the global tool environment)
+# 2. Install or update sami (rewrites the global tool environment)
 if [[ "$ACTION" == "update" ]]; then
     info "Updating sami..."
     uv tool install --python 3.12 --force --upgrade "$REPO"
@@ -59,10 +55,13 @@ else
     uv tool install --python 3.12 "$REPO"
 fi
 
-# 4. Verify
+# Register the stable launcher for desktop clients.
+sami_launcher="$(uv tool dir --bin)/sami"
+"$sami_launcher" setup --register-only --executable "$sami_launcher"
+
+# 3. Verify
 if command -v sami &>/dev/null; then
-    info "Done! Run: sami paper.pdf"
-    info "On first run, llama-server and OCR models are downloaded automatically."
+    info "Done! Run sami setup to prepare and verify all modes."
     info "Check readiness anytime with: sami health"
 else
     # uv puts it in ~/.local/bin which might not be in PATH yet

@@ -10,20 +10,21 @@ For each input PDF, creates a folder with the same stem containing:
 
 Usage:
     sami paper.pdf                     # -> paper/paper.md + figures
-    sami paper.pdf -o out/             # -> out/paper.md + figures
+    sami paper.pdf -o out/             # -> out/paper/paper.md + figures
     sami a.pdf b.pdf                   # batch convert
     sami paper.pdf --mode fast         # fast mode
-    sami paper.pdf --mode quality      # Marker balanced profile
+    sami paper.pdf --mode quality      # Marker with VLM layout
     sami paper.pdf --json              # protocol 1 JSONL on stdout
     sami paper.pdf --flat              # no subfolder, output beside the PDF
     sami paper.pdf -q                  # quiet mode, minimal output
 
-Exit codes: 0 success, 1 at least one PDF failed, 2 usage error.
+Exit codes: 0 success, 1 incomplete batch, 2 usage error, 130 cancelled.
 """
 from __future__ import annotations
 
 import argparse
 import contextlib
+import io
 import os
 import re
 import shutil
@@ -36,13 +37,15 @@ from pathlib import Path
 import signal
 
 from sami.contracts import (
+    AccelerationError,
     ConversionOptions,
     ConversionRequest,
     JobResult,
     RunResult,
+    REQUESTED_DEVICES,
 )
-from sami.events import EventSequencer
-from sami.outputs import make_staging_dir, prepend_frontmatter, publish, reserve_stem
+from sami.events import EventSequencer, write_json_line
+from sami.outputs import claim_stem, make_staging_dir, prepend_frontmatter, publish
 
 VALID_MODES = ("fast", "balanced", "quality")
 
@@ -53,8 +56,8 @@ VALID_MODES = ("fast", "balanced", "quality")
 
 def ensure_app_home() -> Path:
     """Create and return the sami home directory (~/.sami/)."""
-    app_home = Path(os.environ.get("SAMI_HOME", Path.home() / ".sami"))
-    app_home.mkdir(exist_ok=True)
+    app_home = Path(os.environ.get("SAMI_HOME", Path.home() / ".sami")).expanduser().resolve()
+    app_home.mkdir(parents=True, exist_ok=True)
     for name in ("cache", "config", "logs", "bin"):
         (app_home / name).mkdir(exist_ok=True)
     os.environ.setdefault("HF_HOME", str(app_home / "cache" / "huggingface"))
@@ -62,16 +65,10 @@ def ensure_app_home() -> Path:
     return app_home
 
 
-def _signal_handler(signum, frame):
-    signame = signal.Signals(signum).name
-    print(f"\n[cleanup] Received {signame}, shutting down...", file=sys.stderr)
-    sys.exit(128 + signum)
-
-
-def _install_signal_handlers() -> None:
-    """Install process handlers only while the CLI is actually running."""
-    signal.signal(signal.SIGTERM, _signal_handler)
-    signal.signal(signal.SIGINT, _signal_handler)
+def _install_signal_handlers(control) -> None:
+    """Route terminal interruption and GUI cancellation through the same state."""
+    signal.signal(signal.SIGTERM, control.signal)
+    signal.signal(signal.SIGINT, control.signal)
 
 
 # ---------------------------------------------------------------------------
@@ -297,83 +294,9 @@ def convert_pdf(
 # ---------------------------------------------------------------------------
 
 def _health_command(argv: list[str]) -> int:
-    """Implement `sami health [--json]`.
+    from sami.diagnostics import management_command
 
-    Reads ~/.sami/compatibility.json if present and performs lightweight
-    path checks (< 1 s, no Torch/model loading).  Emits one JSON object to
-    stdout if --json; otherwise prints a human-readable summary.
-
-    Exit codes: 0 = ready/degraded, 3 = repair_required.
-    """
-    import json as _json
-    emit_json = "--json" in argv
-
-    app_home = Path(os.environ.get("SAMI_HOME", Path.home() / ".sami"))
-    binary = "llama-server.exe" if sys.platform == "win32" else "llama-server"
-    bin_dir = app_home / "bin"
-    candidates = [bin_dir / "cuda" / binary, bin_dir / "cpu" / binary, bin_dir / binary]
-    configured = os.environ.get("LLAMA_CPP_BINARY") or shutil.which(binary)
-    if configured:
-        candidates.insert(0, Path(shutil.which(configured) or configured))
-    llama_bin = next((path for path in candidates if path.is_file()), None)
-    llama_ok = llama_bin is not None
-
-    hf_cache = Path(os.environ.get("HF_HOME", app_home / "cache" / "huggingface"))
-
-    from sami import __version__
-
-    warnings: list[str] = []
-    repair_reasons: list[str] = []
-
-    # Check llama-server for quality mode
-    if not llama_ok:
-        warnings.append("llama-server not found — quality mode will attempt download on first use")
-
-    # Check HF cache directory
-    if not hf_cache.is_dir():
-        warnings.append(f"HF cache missing: {hf_cache}")
-
-    # Determine status
-    if repair_reasons:
-        status = "repair_required"
-    elif warnings:
-        status = "degraded"
-    else:
-        status = "ready"
-
-    result = {
-        "protocol_version": 1,
-        "cli_version": __version__,
-        "status": status,
-        "modes": {
-            "fast":     {"available": True,     "device": "cpu", "inference_server": False},
-            "balanced": {"available": True,     "device": "cpu", "inference_server": False,
-                         "note": "RF-DETR can use CUDA. OCR may start llama-server."},
-            "quality":  {"available": llama_ok, "device": "cpu", "inference_server": True,
-                         "note": "GPU offload scaled by VRAM at runtime"},
-        },
-        "paths": {
-            "sami_home":    str(app_home),
-            "llama_server": str(llama_bin) if llama_ok else None,
-            "hf_cache":     str(hf_cache),
-        },
-        "warnings": warnings,
-        "repair_reasons": repair_reasons,
-    }
-
-    if emit_json:
-        print(_json.dumps(result), flush=True)
-    else:
-        print(f"sami {__version__} — {status.upper()}")
-        print(f"  SAMI_HOME:    {app_home}")
-        print(f"  llama-server: {'OK' if llama_ok else 'MISSING (quality mode will download on first use)'}")
-        print(f"  HF cache:     {'OK' if hf_cache.is_dir() else 'MISSING'}")
-        for w in warnings:
-            print(f"  WARNING: {w}")
-        for r in repair_reasons:
-            print(f"  REPAIR: {r}")
-
-    return 3 if status == "repair_required" else 0
+    return management_command("health", argv)
 
 
 # ---------------------------------------------------------------------------
@@ -405,287 +328,348 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _main(argv: list[str] | None, runtime: contextlib.ExitStack) -> int:
-    global _QUIET, _JSON_MODE, _ACTIVE_PROGRESS_CALLBACK
+    global _QUIET, _JSON_MODE
+    from sami import __version__
 
-    # Dispatch subcommands before building the main parser.
-    raw_argv = argv if argv is not None else sys.argv[1:]
+    raw_argv = list(sys.argv[1:] if argv is None else argv)
     if raw_argv and raw_argv[0] == "health":
         return _health_command(raw_argv[1:])
     if raw_argv and raw_argv[0] == "upgrade":
         from sami.upgrade import upgrade_command
 
         return upgrade_command(raw_argv[1:])
+    if raw_argv and raw_argv[0] in ("doctor", "setup"):
+        from sami.diagnostics import management_command
+
+        return management_command(raw_argv[0], raw_argv[1:])
+    if raw_argv and raw_argv[0] == "convert":
+        raw_argv.pop(0)
 
     parser = argparse.ArgumentParser(
         prog="sami",
-        description="Convert PDF files to Markdown with extracted figures.",
-        epilog="Use 'sami upgrade' to update the installed CLI.",
+        description="Convert PDFs and folders to Markdown with extracted figures.",
+        epilog="Commands: convert, health, doctor, setup, upgrade.",
     )
-    from sami import __version__
-    parser.add_argument(
-        "--version", action="version", version=f"%(prog)s {__version__}",
-    )
-    parser.add_argument("pdf", nargs="+", help="PDF file(s) to convert")
-    parser.add_argument(
-        "-o", "--output", metavar="DIR", default=None,
-        help="output directory (default: beside each PDF)",
-    )
-    parser.add_argument(
-        "--mode", choices=VALID_MODES, default="balanced",
-        help="conversion mode: fast, Marker balanced, or Marker quality (default: balanced)",
-    )
-    parser.add_argument(
-        "--no-strip-refs", action="store_true",
-        help="accepted for compatibility; references are retained by all modes",
-    )
-    parser.add_argument(
-        "--flat", action="store_true",
-        help="don't create a subfolder per PDF; write .md + figures directly into the output dir",
-    )
-    parser.add_argument(
-        "-q", "--quiet", action="store_true",
-        help="minimal output, no per-stage logging",
-    )
-    parser.add_argument(
-        "--json", action="store_true",
-        help="emit protocol 1 JSON Lines events on stdout",
-    )
-    args = parser.parse_args(argv)
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    parser.add_argument("pdf", nargs="+", metavar="INPUT", help="PDF file(s) or folders")
+    parser.add_argument("-o", "--output", metavar="DIR", help="output directory (default: beside each PDF)")
+    parser.add_argument("--mode", choices=VALID_MODES, default="balanced")
+    parser.add_argument("--device", choices=REQUESTED_DEVICES, default="auto")
+    parser.add_argument("--recursive", action="store_true", help="include PDF files in subfolders")
+    parser.add_argument("--no-strip-refs", action="store_true", help="compatibility option; references are preserved")
+    parser.add_argument("--flat", action="store_true", help="write directly to the output directory")
+    parser.add_argument("-q", "--quiet", action="store_true", help="minimal output")
+    parser.add_argument("--json", action="store_true", help="emit protocol 1 JSON Lines on stdout")
+    parser.add_argument("--control-stdin", action="store_true", help="accept protocol 1 cancellation commands on stdin")
+    options_end = raw_argv.index("--") if "--" in raw_argv else len(raw_argv)
+    if "--json" in raw_argv[:options_end]:
+        parser_stderr = io.StringIO()
+        try:
+            with contextlib.redirect_stderr(parser_stderr):
+                args = parser.parse_args(raw_argv)
+        except SystemExit as exc:
+            if exc.code != 2:
+                raise
+            detail = parser_stderr.getvalue()
+            print(detail, end="", file=sys.stderr)
+            run_id = uuid.uuid4().hex
+            result = RunResult(run_id=run_id, results=(), exit_code=2)
+            event = EventSequencer(run_id).create("run_finished", {
+                "totals": result.totals, "duration_seconds": 0, "exit_code": 2,
+                "input_issue_count": 0, "error": {"code": "INVALID_ARGUMENTS", "message": detail.strip()},
+            })
+            write_json_line(sys.stdout, event.to_json_line())
+            return 2
+    else:
+        args = parser.parse_args(raw_argv)
     _QUIET = args.quiet
     _JSON_MODE = args.json
-    event_stdout = sys.stdout
 
-    pdfs: list[Path] = []
-    for raw in args.pdf:
-        p = Path(raw).expanduser().resolve()
-        if not p.is_file():
-            print(f"Not a file: {raw}", file=sys.stderr)
-            return 2
-        if p.suffix.lower() != ".pdf":
-            print(f"Not a PDF: {raw}", file=sys.stderr)
-            return 2
-        pdfs.append(p)
-    pdfs = list(dict.fromkeys(pdfs))
+    from sami.control import RunControl
+    from sami.inputs import discover_inputs
 
-    from sami.engines import convert as convert_engine, select_engine
-
-    mode = args.mode
-    selection = select_engine(mode)
-    app_home = ensure_app_home()
-    for signum in (signal.SIGTERM, signal.SIGINT):
-        runtime.callback(signal.signal, signum, signal.getsignal(signum))
-    _install_signal_handlers()
-    os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
-    cpu_config = _configure_cpu()
-    from sami import __version__
     run_id = uuid.uuid4().hex
     sequencer = EventSequencer(run_id)
+    control = RunControl(run_id)
+    event_stdout = sys.stdout
+    start = time.monotonic()
+    pdfs, issues = discover_inputs(args.pdf, recursive=args.recursive)
 
     def emit(event: str, data: dict, *, job_id: str | None = None, attempt: int | None = None) -> None:
         if args.json:
-            print(
+            write_json_line(
+                event_stdout,
                 sequencer.create(event, data, job_id=job_id, attempt=attempt).to_json_line(),
-                file=event_stdout,
-                flush=True,
             )
 
-    emit("run_started", {"mode": mode, "default_mode": "balanced", "version": __version__})
-    emit("inputs_resolved", {"count": len(pdfs), "inputs": [str(pdf) for pdf in pdfs], "issues": []})
-    log(f"sami: {len(pdfs)} file(s) queued")
-    total_t0 = time.monotonic()
-    effective_device = _effective_device(selection.engine, mode)
-    converter = None
-    if selection.engine == "marker":
-        from sami.engines.marker import build_converter
-        try:
-            with contextlib.redirect_stdout(sys.stderr if args.json else sys.stdout):
-                converter = build_converter(
-                    selection.profile,
-                    cpu_config=cpu_config,
-                    logger=log,
-                    stage_logger=_marker_stage_logger,
-                    stage_done_logger=_marker_stage_done,
-                    app_home=app_home,
-                    runtime=runtime,
-                )
-            if (
-                mode == "quality" and os.environ.get("SURYA_INFERENCE_BACKEND") == "llamacpp"
-                and not os.environ.get("SURYA_INFERENCE_URL")
-            ):
-                effective_device = "cuda" if converter.sami_vlm_cuda else "cpu"
-        except (Exception, SystemExit) as exc:
-            runtime.close()
-            failed: list[JobResult] = []
-            for pdf in pdfs:
-                job_id = uuid.uuid4().hex
-                emit("job_started", {
-                    "input": str(pdf), "engine": selection.engine,
-                    "device": effective_device,
-                }, job_id=job_id, attempt=1)
-                result = JobResult(
-                    job_id=job_id,
-                    input_path=pdf,
-                    mode=mode,
-                    engine=selection.engine,
-                    device=effective_device,
-                    status="failed",
-                    errors=({
-                        "code": "ENGINE_INITIALIZATION_ERROR",
-                        "message": str(exc),
-                    },),
-                    duration_seconds=0,
-                )
-                failed.append(result)
-                emit("job_finished", {"result": result.to_wire()}, job_id=job_id, attempt=1)
-            code = 2 if isinstance(exc, SystemExit) else 1
-            run = RunResult(run_id=run_id, results=tuple(failed), exit_code=code)
-            emit("run_finished", {
-                "totals": run.totals, "duration_seconds": 0, "exit_code": code,
-            })
-            return code
+    def finish(results, exit_code: int) -> int:
+        run = RunResult(run_id=run_id, results=tuple(results), exit_code=exit_code)
+        elapsed = time.monotonic() - start
+        emit("run_finished", {
+            "totals": run.totals, "duration_seconds": elapsed, "exit_code": exit_code,
+            "input_issue_count": len(issues),
+        })
+        log(f"Summary: {run.totals['succeeded']} converted, {run.totals['partial']} partial, "
+            f"{run.totals['failed']} failed, {run.totals['cancelled']} cancelled ({elapsed:.1f}s)")
+        return exit_code
 
+    emit("run_started", {
+        "mode": args.mode, "default_mode": "balanced", "version": __version__,
+        "requested_device": args.device,
+    })
+    emit("inputs_resolved", {"count": len(pdfs), "inputs": [str(pdf) for pdf in pdfs], "issues": issues})
+    for issue in issues:
+        print(f"{issue['path']}: {issue['message']}", file=sys.stderr)
+    if not pdfs:
+        return finish([], 2)
+
+    for signum in (signal.SIGTERM, signal.SIGINT):
+        runtime.callback(signal.signal, signum, signal.getsignal(signum))
+    runtime.callback(control.close)
+    _install_signal_handlers(control)
+    jobs = [(pdf, uuid.uuid4().hex) for pdf in pdfs]
     results: list[JobResult] = []
-    # Track the active job so KeyboardInterrupt can emit a terminal event.
-    _active_job_id: str | None = None
-    _active_job_started: float | None = None
-    _claimed_stems: set[str] = set()
+    with contextlib.ExitStack() as engines, contextlib.ExitStack() as claims:
+        try:
+            if args.control_stdin:
+                control.read_stdin()
+            control.check()
+            _convert_batch(args, jobs, results, control, engines, claims, emit)
+            control.check()
+        except KeyboardInterrupt:
+            control.close()
+            from sami.engines import select_engine
 
-    try:
-        for i, pdf in enumerate(pdfs, 1):
-            job_id = uuid.uuid4().hex
-            _active_job_id = job_id
-            _active_job_started = None
-            if len(pdfs) > 1:
-                log(f"\n[{i}/{len(pdfs)}]")
-            out_dir = Path(args.output).resolve() if args.output else pdf.parent
-            started = time.monotonic()
-            _active_job_started = started
-            staging: Path | None = None
-            emit("job_started", {
-                "input": str(pdf), "index": i, "total": len(pdfs),
-                "engine": selection.engine, "device": effective_device,
-            }, job_id=job_id, attempt=1)
+            print("\n[cleanup] Conversion cancelled.", file=sys.stderr)
+            for pdf, job_id in jobs[len(results):]:
+                active = control.active
+                device, attempt, seconds = (
+                    (active[1], active[2], time.monotonic() - active[3])
+                    if active and job_id == active[0] else ("cpu", 0, 0.0)
+                )
+                result = JobResult(
+                    job_id=job_id, input_path=pdf, mode=args.mode,
+                    engine=select_engine(args.mode).engine, device=device, status="cancelled",
+                    duration_seconds=seconds, attempts=max(attempt, 1),
+                )
+                results.append(result)
+                emit("job_finished", {"result": result.to_wire(), "started": bool(attempt)},
+                     job_id=job_id, attempt=max(attempt, 1))
+            exit_code = 130
+        except (Exception, SystemExit) as exc:
+            control.close()
+            from sami.engines import select_engine
 
-            def stage_progress(_name: str, stage: str, **_kwargs) -> None:
-                emit("job_progress", {
-                    "stage": stage.strip(), "completed": None, "total": None,
-                }, job_id=job_id, attempt=1)
+            print(f"FAILED: {exc}", file=sys.stderr)
+            for pdf, job_id in jobs[len(results):]:
+                failure = JobResult(
+                    job_id=job_id, input_path=pdf, mode=args.mode, device="cpu",
+                    engine=select_engine(args.mode).engine, status="failed",
+                    errors=({"code": "BATCH_INITIALIZATION_ERROR", "message": str(exc)},),
+                )
+                results.append(failure)
+                emit("job_finished", {"result": failure.to_wire()}, job_id=job_id, attempt=1)
+            exit_code = 1
+        else:
+            exit_code = int(bool(issues or any(r.status in ("failed", "partial") for r in results)))
+        finally:
+            control.close()
+    return finish(results, exit_code)
 
-            def stage_done(_elapsed: float) -> None:
-                log_stage_done(_elapsed)
 
+@contextlib.contextmanager
+def _cpu_environment():
+    """Configure a CPU attempt while preserving the user's environment."""
+    with contextlib.ExitStack() as restore:
+        for key, value in {
+            "TORCH_DEVICE": "cpu", "FAST_DETECTOR_DEVICE": "cpu", "LLAMA_CPP_NGL": "0",
+            "SURYA_INFERENCE_BACKEND": "llamacpp", "LLAMA_CPP_NO_MMPROJ_OFFLOAD": "true",
+            "SURYA_INFERENCE_URL": "", "FAST_LAYOUT_SERVER_URL": "", "OCR_ERROR_SERVER_URL": "",
+            "LLAMA_CPP_EXTRA_ARGS": "",
+        }.items():
+            if key in os.environ:
+                restore.callback(os.environ.__setitem__, key, os.environ[key])
+            else:
+                restore.callback(os.environ.pop, key, None)
+            os.environ[key] = value
+        yield
+
+
+def _gpu_failure(exc: BaseException) -> bool:
+    """Distinguish accelerator failures from bad PDFs and publication errors."""
+    while exc is not None:
+        if isinstance(exc, AccelerationError) or exc.__class__.__name__ == "OutOfMemoryError":
+            return True
+        if re.search(
+            r"cuda error|cuda out of memory|cudaMalloc|CUDA_ERROR_|cublas_status_|"
+            r"hip error|hip out of memory|hipMalloc|hipError|"
+            r"GPU (?:out of memory|allocation failed)|(?:CUDA|HIP)\d.*(?:allocat|out of memory).*fail",
+            str(exc), re.IGNORECASE,
+        ):
+            return True
+        exc = exc.__cause__ or exc.__context__
+    return False
+
+
+def _convert_batch(args, jobs, results, control, engines, claims, emit):
+    global _ACTIVE_PROGRESS_CALLBACK
+    from sami import __version__
+    from sami.engines import convert as convert_engine, select_engine
+
+    selection = select_engine(args.mode)
+    app_home = ensure_app_home()
+    cpu_config = _configure_cpu()
+    device = _effective_device(selection.engine, args.mode)
+    requested = args.device
+    force_cpu = requested == "cpu" or (
+        requested in ("cuda", "rocm") and device != requested
+        and not (args.mode == "quality" and requested == "cuda")
+    )
+    if force_cpu:
+        device = "cpu"
+    converter = None
+    init_error = None
+    log(f"sami: {len(jobs)} file(s) queued")
+
+    for index, (pdf, job_id) in enumerate(jobs, 1):
+        control.check()
+        started = time.monotonic()
+        control.active = (job_id, device, 1, started)
+        emit("job_started", {
+            "input": str(pdf), "index": index, "total": len(jobs),
+            "engine": selection.engine, "device": device,
+        }, job_id=job_id, attempt=1)
+        warnings = []
+        fallback_from = requested if requested in ("cuda", "rocm") and force_cpu else None
+
+        def fallback_warning(previous, reason, attempt):
+            warning = {
+                "code": "GPU_FALLBACK_CPU", "message": reason,
+                "previous_device": previous, "device": "cpu",
+            }
+            warnings.append(warning)
+            emit("warning", warning, job_id=job_id, attempt=attempt)
+            print(f"WARNING: {reason}", file=sys.stderr)
+
+        if fallback_from:
+            fallback_warning(fallback_from, f"{fallback_from} is unavailable in this mode. Using CPU.", 1)
+        out_dir = Path(args.output).resolve() if args.output else pdf.parent
+        stem = None
+
+        for attempt in (1, 2):
+            control.check()
+            control.active = (job_id, device, attempt, started)
+            staging = None
+            initializing = False
+            converting = False
             try:
+                if init_error:
+                    initializing = True
+                    raise init_error
+
+                def progress(stage):
+                    control.check()
+                    emit("job_progress", {"stage": stage.strip(), "completed": None, "total": None},
+                         job_id=job_id, attempt=attempt)
+
+                _ACTIVE_PROGRESS_CALLBACK = progress
+                if selection.engine == "marker" and converter is None:
+                    initializing = True
+                    if force_cpu:
+                        engines.enter_context(_cpu_environment())
+                    from sami.engines.marker import build_converter
+
+                    with contextlib.redirect_stdout(sys.stderr if args.json else sys.stdout):
+                        converter = build_converter(
+                            selection.profile, cpu_config=cpu_config, logger=log,
+                            stage_logger=_marker_stage_logger, stage_done_logger=_marker_stage_done,
+                            app_home=app_home, runtime=engines, cancel_event=control.cancelled,
+                        )
+                    if args.mode == "quality" and os.environ.get("SURYA_INFERENCE_BACKEND") == "llamacpp":
+                        device = "cuda" if converter.sami_vlm_cuda else "cpu"
+                    if not warnings and device == "cpu" and requested in ("cuda", "rocm"):
+                        fallback_warning(requested, f"{requested} runtime is unavailable. Using CPU.", attempt)
+                    initializing = False
+
+                control.active = (job_id, device, attempt, started)
                 out_dir.mkdir(parents=True, exist_ok=True)
-                # Reserve output identity before staging so another concurrent
-                # sami process doesn't claim the same stem.
-                stem = reserve_stem(pdf, out_dir, args.flat, claimed=_claimed_stems)
+                if stem is None:
+                    with control.publishing():
+                        stem = claims.enter_context(claim_stem(pdf, out_dir, args.flat))
+                control.check()
                 staging = make_staging_dir(out_dir, stem)
                 request = ConversionRequest(
-                    job_id=job_id,
-                    input_path=pdf,
-                    mode=mode,
-                    options=ConversionOptions(),
-                    staging_dir=staging,
-                    device=effective_device,
-                    attempt=1,
+                    job_id=job_id, input_path=pdf, mode=args.mode,
+                    options=ConversionOptions(device=requested), staging_dir=staging,
+                    device=device, attempt=attempt,
                 )
-                _ACTIVE_PROGRESS_CALLBACK = lambda stage: stage_progress(pdf.name, stage)
+                converting = True
                 with contextlib.redirect_stdout(sys.stderr if args.json else sys.stdout):
-                    engine_result = convert_engine(
-                        request,
-                        cpu_config=cpu_config if selection.engine == "marker" else None,
+                    result = convert_engine(
+                        request, cpu_config=cpu_config if selection.engine == "marker" else None,
                         logger=log if selection.engine == "marker" else None,
-                        stage_logger=stage_progress if selection.engine == "marker" else None,
-                        stage_done_logger=stage_done if selection.engine == "marker" else None,
-                        converter=converter,
-                        app_home=app_home,
+                        stage_logger=_marker_stage_logger if selection.engine == "marker" else None,
+                        stage_done_logger=_marker_stage_done if selection.engine == "marker" else None,
+                        converter=converter, app_home=app_home,
                     )
-                # Write markdown with sami front-matter into staging.
-                from sami import __version__ as _ver
-                md_name = f"{stem}.md"
-                markdown_with_fm = prepend_frontmatter(
-                    engine_result.markdown, source=pdf, version=_ver
-                )
-                (staging / md_name).write_text(markdown_with_fm, encoding="utf-8")
-                # Publish atomically.
-                pub = publish(staging, stem, out_dir, args.flat)
-                md_path: Path = pub["md_path"]
-                resource_paths: list[Path] = pub["resource_paths"]
-                staging = None  # published; don't remove in finally
-                status = "partial" if engine_result.gaps else "succeeded"
-                result = JobResult(
-                    job_id=job_id,
-                    input_path=pdf,
-                    mode=mode,
-                    engine=selection.engine,
-                    device=effective_device,
-                    status=status,
-                    output_paths=(md_path, *resource_paths),
-                    warnings=engine_result.warnings,
-                    duration_seconds=time.monotonic() - started,
-                    attempts=1,
-                )
-                for warning in engine_result.warnings:
-                    emit("warning", warning, job_id=job_id, attempt=1)
-                results.append(result)
-                emit("job_finished", {"result": result.to_wire()}, job_id=job_id, attempt=1)
-                log(f"  [{pdf.name}] Done: {engine_result.processed_pages} pages → {md_path}")
-            except Exception as exc:
+                converting = False
+                control.check()
+                for warning in (*result.warnings, *result.gaps):
+                    warnings.append(warning)
+                    emit("warning", warning, job_id=job_id, attempt=attempt)
+                markdown = prepend_frontmatter(result.markdown, source=pdf, version=__version__)
+                (staging / f"{stem}.md").write_text(markdown, encoding="utf-8")
+                control.check()
+                with control.publishing():
+                    published = publish(staging, stem, out_dir, args.flat)
+                    finished = JobResult(
+                        job_id=job_id, input_path=pdf, mode=args.mode, engine=selection.engine,
+                        device=device, status="partial" if result.gaps else "succeeded",
+                        output_paths=(published["md_path"], *published["resource_paths"]),
+                        warnings=tuple(warnings), duration_seconds=time.monotonic() - started, attempts=attempt,
+                    )
+                    results.append(finished)
+                    emit("job_finished", {"result": finished.to_wire()}, job_id=job_id, attempt=attempt)
+                log(f"  [{pdf.name}] Done: {result.processed_pages} pages → {published['md_path']}")
+                break
+            except (Exception, SystemExit) as exc:
+                control.check()
+                gpu = device if device != "cpu" else ("cuda" if getattr(converter, "sami_vlm_cuda", False) else "cpu")
+                if (
+                    (initializing or converting) and selection.engine == "marker" and not force_cpu
+                    and (gpu != "cpu" or isinstance(exc, AccelerationError)) and _gpu_failure(exc)
+                ):
+                    if gpu == "cpu":
+                        gpu = requested if requested in ("cuda", "rocm") else "cuda"
+                    reason = f"{gpu} conversion failed. Retrying in CPU with the same mode. {exc}"
+                    emit("job_retrying", {"previous_device": gpu, "device": "cpu", "reason": str(exc)},
+                         job_id=job_id, attempt=attempt + 1)
+                    fallback_warning(gpu, reason, attempt + 1)
+                    engines.close()
+                    converter = None
+                    device, force_cpu = "cpu", True
+                    continue
+                if initializing:
+                    init_error = exc
+                    engines.close()
+                    converter = None
                 print(f"FAILED: {pdf.name}: {exc}", file=sys.stderr)
-                result = JobResult(
-                    job_id=job_id,
-                    input_path=pdf,
-                    mode=mode,
-                    engine=selection.engine,
-                    device=effective_device,
-                    status="failed",
-                    errors=({"code": getattr(exc, "code", "CONVERSION_ERROR"), "message": str(exc)},),
-                    duration_seconds=time.monotonic() - started,
-                )
-                results.append(result)
-                emit("job_finished", {"result": result.to_wire()}, job_id=job_id, attempt=1)
+                code = "ENGINE_INITIALIZATION_ERROR" if initializing else "CONVERSION_ERROR"
+                with control.publishing():
+                    failed = JobResult(
+                        job_id=job_id, input_path=pdf, mode=args.mode, engine=selection.engine,
+                        device=device, status="failed", warnings=tuple(warnings),
+                        errors=({"code": getattr(exc, "code", code), "message": str(exc)},),
+                        duration_seconds=time.monotonic() - started, attempts=attempt,
+                    )
+                    results.append(failed)
+                    emit("job_finished", {"result": failed.to_wire()}, job_id=job_id, attempt=attempt)
+                break
             finally:
                 _ACTIVE_PROGRESS_CALLBACK = None
-                _active_job_id = None
                 if staging is not None:
                     shutil.rmtree(staging, ignore_errors=True)
-    except KeyboardInterrupt:
-        print("\n[cleanup] Interrupted by user", file=sys.stderr)
-        # Emit a cancelled terminal event for the job that was interrupted
-        # so JSONL consumers always get a terminal event per job.
-        if _active_job_id is not None:
-            cancelled_result = JobResult(
-                job_id=_active_job_id,
-                input_path=pdfs[len(results)],
-                mode=mode,
-                engine=selection.engine,
-                device=effective_device,
-                status="cancelled",
-                duration_seconds=time.monotonic() - (_active_job_started or total_t0),
-            )
-            results.append(cancelled_result)
-            emit("job_finished", {"result": cancelled_result.to_wire()},
-                 job_id=_active_job_id, attempt=1)
-        exit_code = 130
-    finally:
-        runtime.close()
-
-    total_elapsed = time.monotonic() - total_t0
-    if 'exit_code' not in locals():
-        exit_code = 1 if any(result.status == "failed" for result in results) else 0
-    run_result = RunResult(run_id=run_id, results=tuple(results), exit_code=exit_code)
-    emit("run_finished", {
-        "totals": run_result.totals,
-        "duration_seconds": total_elapsed,
-        "exit_code": exit_code,
-    })
-    log(f"\n{'=' * 60}")
-    log(f"  Summary: {run_result.totals['succeeded'] + run_result.totals['partial']} converted, "
-        f"{run_result.totals['failed']} failed")
-    log(f"  Total time: {total_elapsed:.1f}s")
-    log(f"{'=' * 60}")
-
-    return exit_code
+    control.active = None
 
 
 if __name__ == "__main__":

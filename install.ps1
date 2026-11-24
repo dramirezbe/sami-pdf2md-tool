@@ -22,6 +22,10 @@ if ($UpgradePython) {
     if ($LASTEXITCODE -ne 0) {
         throw "SAMI upgrade failed (exit $LASTEXITCODE)."
     }
+    & $UpgradePython -I -m sami.cli setup --register-only
+    if ($LASTEXITCODE -ne 0) {
+        throw "SAMI launcher registration failed (exit $LASTEXITCODE)."
+    }
     Write-Host 'SAMI upgraded.'
     return
 }
@@ -113,5 +117,10 @@ if (($env:PATH -split ';') -notcontains $binDir) {
     $env:PATH = "$binDir;$env:PATH"
 }
 
-Write-Host 'SAMI installed. Try: sami paper.pdf --mode balanced'
-Write-Host 'SAMI downloads the llama.cpp runtime and OCR models when it needs them.'
+$samiLauncher = Join-Path $binDir 'sami.exe'
+& $samiLauncher setup --register-only --executable $samiLauncher
+if ($LASTEXITCODE -ne 0) {
+    throw "SAMI launcher registration failed (exit $LASTEXITCODE)."
+}
+
+Write-Host 'SAMI installed. Run sami setup to prepare and verify all modes.'

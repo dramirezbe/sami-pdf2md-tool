@@ -275,7 +275,7 @@ def _find_children_proc(name: str) -> Set[int]:
 # services alive. Give each CLI run its own discovery state so it can safely
 # release the GPU even when another SAMI run is active.
 @contextmanager
-def managed_surya_servers():
+def managed_surya_servers(cancel_event: threading.Event | None = None):
     """Isolate Surya's implicit servers and stop the ones this run starts."""
     import psutil
     from surya.inference.backends import spawn
@@ -288,9 +288,24 @@ def managed_surya_servers():
         spawn._cache_dir = lambda: Path(state_dir)
         # SAMI owns cleanup for this private namespace, including the VLM.
         settings.SURYA_INFERENCE_KEEP_ALIVE = True
+        closed = threading.Event()
+        watcher = None
+        if cancel_event is not None:
+            def stop_on_cancel():
+                while not closed.is_set():
+                    if cancel_event.wait(0.1):
+                        if not closed.is_set():
+                            _stop_surya_children(settings.LLAMA_CPP_BINARY, existing)
+                        return
+
+            watcher = threading.Thread(target=stop_on_cancel, daemon=True)
+            watcher.start()
         try:
             yield
         finally:
+            closed.set()
+            if watcher:
+                watcher.join()
             try:
                 _stop_surya_children(settings.LLAMA_CPP_BINARY, existing)
             finally:

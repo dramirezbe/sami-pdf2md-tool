@@ -14,7 +14,7 @@ Powered by [Marker](https://github.com/VikParuchuri/marker).
 curl -fsSL https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.sh | bash
 ```
 
-This installs `uv` (if missing) and `sami` globally. On first use, SAMI downloads `llama-server` and OCR models into `~/.sami/`. When the NVIDIA driver and available VRAM support it, SAMI downloads and verifies the CUDA build of `llama-server` and its matching runtime libraries.
+This installs `uv` if needed, makes `sami` available on your PATH, and registers the executable. Run `sami setup` to prepare the models and validate all three modes before conversion. When the NVIDIA driver and available VRAM support it, SAMI downloads and verifies the CUDA build of `llama-server` and its matching runtime libraries.
 
 ### Windows PowerShell
 
@@ -28,6 +28,7 @@ Verify the installation and convert a PDF:
 
 ```powershell
 sami --version
+sami setup
 sami paper.pdf --mode balanced
 ```
 
@@ -84,13 +85,19 @@ uv tool install --python 3.12 -e .
 
 ```bash
 sami paper.pdf                     # -> paper/paper.md + figures
-sami paper.pdf -o out/             # -> out/paper.md + figures
+sami paper.pdf -o out/             # -> out/paper/paper.md + figures
 sami a.pdf b.pdf                   # batch convert
+sami convert a.pdf reports/ --recursive -o out/
 sami paper.pdf --mode fast         # faster, lower quality
+sami paper.pdf --device cpu        # keep the selected mode on CPU
 sami paper.pdf --no-strip-refs     # keep the references section
 sami paper.pdf --flat              # no subfolder, output beside the PDF
 sami paper.pdf -q                  # quiet mode
 ```
+
+Folder inputs include their direct PDFs by default. Use `--recursive` to include subfolders. The batch deduplicates inputs and reports invalid selections while continuing with the valid PDFs.
+
+Repeated conversions get numbered names such as `paper_2.md`. With `--flat`, a document's figures are published under its own `<name>_assets/` directory.
 
 ## Conversion Modes
 
@@ -100,15 +107,38 @@ sami paper.pdf -q                  # quiet mode
 | balanced | `--mode balanced` *(default)* | RF-DETR on CUDA when available, with llama.cpp for OCR as needed | General use |
 | quality | `--mode quality` | llama.cpp VLM with GPU offload according to free VRAM | Layout quality |
 
-At model load, llama.cpp fits VLM layers to the free VRAM and the memory required for the current model and context. When CUDA or automatic fitting is unavailable, SAMI uses the CPU. Set `LLAMA_CPP_NGL` to an explicit layer count, or set it to `0` to run the VLM on CPU.
+At model load, llama.cpp fits VLM layers to the free VRAM and the memory required for the current model and context. When an accelerator fails during conversion, SAMI retries the current document once on CPU with the same mode and continues the batch on CPU. Set `LLAMA_CPP_NGL` to an explicit layer count, or set it to `0` to run the VLM on CPU.
+
+## Installation status and desktop integration
+
+```shell
+sami health --json
+sami setup
+sami doctor --json
+sami convert reports/ --recursive --json --control-stdin
+```
+
+Read the absolute `executable` path and `installation_id` from `installation.json` in SAMI home. Launch the executable directly and check `health --json` for the CLI version, protocol version, matching installation ID, and per-mode status. Health reads local metadata and cached assets. `setup` downloads missing runtime files and verifies the CPU path for every mode, and it checks GPU acceleration when available. `doctor` includes the installation record and the last compatibility report. Run setup again after upgrading to refresh the validation for that version.
+
+Conversion writes UTF-8 JSON Lines to stdout and human-readable progress to stderr. Read `run_started` for the run ID and `inputs_resolved` for the ordered input list and any selection issues. Use `job_finished.data.result` for terminal status and published output paths. During a retry, `job_retrying` carries the same job ID with the next attempt number. `run_finished` reports the totals and exit code.
+
+To cancel, send a newline-terminated command to stdin using the active run ID.
+
+```json
+{"protocol_version":1,"command":"cancel","run_id":"<active run ID>"}
+```
+
+Cancellation reports terminal results for the active and queued jobs. Previously published results remain available.
 
 ## Exit codes
 
 | Code | Meaning |
 |------|---------|
 | 0 | Success |
-| 1 | At least one PDF failed |
-| 2 | Usage error |
+| 1 | A PDF failed, has partial output, or a mixed batch had invalid inputs |
+| 2 | Usage error or no valid PDF input |
+| 3 | `health` or `doctor` found an installation that requires repair |
+| 130 | Conversion cancelled |
 
 ## App home (`~/.sami/`)
 
@@ -119,6 +149,8 @@ sami creates `~/.sami/` on first run:
   bin/cpu/                    # CPU llama.cpp runtime
   bin/cuda/                   # CUDA llama.cpp runtime, when available
   config/defaults.yaml        # default CLI flags
+  installation.json           # installation ID and absolute CLI launcher path
+  compatibility.json          # results from the latest setup validation
   cache/huggingface/          # downloaded models (surya-ocr, etc.)
   cache/torch/                # torch hub cache
   logs/
@@ -142,11 +174,7 @@ bash setup.sh uninstall
 ## Requirements
 
 - Python >= 3.11, < 3.14 (Pillow/marker-pdf compatibility)
-- Linux or macOS (Windows not yet supported)
-
-## Windows support
-
-Not available in v1. The core conversion works, but subprocess lifecycle management (`SIGTERM`/`SIGKILL` for llama-server cleanup) and the shell installer need Windows-specific implementations. Planned for v2.
+- Linux, macOS, or Windows PowerShell 5.1+
 
 ## License
 

@@ -13,6 +13,8 @@ _VLM_SETTINGS = (
     "LLAMA_CPP_BINARY", "LLAMA_CPP_NGL", "LLAMA_CPP_NO_MMPROJ_OFFLOAD",
     "LLAMA_CPP_EXTRA_ARGS", "SURYA_INFERENCE_PARALLEL",
     "SURYA_GGUF_LOCAL_MODEL_PATH", "SURYA_GGUF_LOCAL_MMPROJ_PATH",
+    "TORCH_DEVICE", "FAST_DETECTOR_DEVICE", "SURYA_INFERENCE_URL",
+    "FAST_LAYOUT_SERVER_URL", "OCR_ERROR_SERVER_URL",
 )
 
 
@@ -194,7 +196,7 @@ def _locate_gguf_paths(app_home: Path | None) -> tuple[str | None, str | None]:
 
     # Standard HF hub cache: models--datalab-to--surya-ocr-2-gguf
     hf_home = Path(os.environ.get("HF_HOME", Path.home() / ".sami" / "cache" / "huggingface"))
-    hub = hf_home / "hub" / "models--datalab-to--surya-ocr-2-gguf"
+    hub = Path(os.environ.get("HF_HUB_CACHE", hf_home / "hub")) / "models--datalab-to--surya-ocr-2-gguf"
 
     if app_home:
         candidates = [hub, app_home / "cache" / "huggingface" / "hub" / "models--datalab-to--surya-ocr-2-gguf"]
@@ -203,9 +205,11 @@ def _locate_gguf_paths(app_home: Path | None) -> tuple[str | None, str | None]:
 
     for base in candidates:
         snapshots = base / "snapshots"
-        if not snapshots.is_dir():
+        try:
+            candidates = sorted(snapshots.iterdir(), reverse=True)
+        except OSError:
             continue
-        for snap in sorted(snapshots.iterdir(), reverse=True):
+        for snap in candidates:
             g = snap / "surya-2.gguf"
             m = snap / "surya-2-mmproj.gguf"
             if g.is_file() and m.is_file():
@@ -265,7 +269,7 @@ def _configure_vlm_backend(logger, app_home: Path | None) -> bool:
 
 def build_converter(
     mode: str | None, *, cpu_config, logger, stage_logger, stage_done_logger,
-    app_home: Path | None = None, runtime: ExitStack | None = None,
+    app_home: Path | None = None, runtime: ExitStack | None = None, cancel_event=None,
 ):
     """Construct a Marker PDF-to-Markdown converter."""
     from sami.hardware import describe_gpu, gpu_info
@@ -306,7 +310,7 @@ def build_converter(
 
     if runtime is not None:
         from sami.processes import managed_surya_servers
-        runtime.enter_context(managed_surya_servers())
+        runtime.enter_context(managed_surya_servers(cancel_event))
 
     import torch
     torch.set_num_threads(cpu_config["torch_threads"])

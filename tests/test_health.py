@@ -14,7 +14,7 @@ from unittest.mock import patch
 class TestHealthCommand(unittest.TestCase):
     """sami health --json emits one valid JSON object; exit codes match status."""
 
-    def _run(self, args: list[str], *, sami_home: Path | None = None) -> tuple[int, dict | None]:
+    def _run(self, args: list[str], *, sami_home: Path | None = None, missing=None) -> tuple[int, dict | None]:
         """Run sami health subcommand; return (exit_code, parsed_json_or_None)."""
         from sami.cli import _health_command
         env = {}
@@ -23,6 +23,7 @@ class TestHealthCommand(unittest.TestCase):
 
         captured = StringIO()
         with patch.dict(os.environ, env, clear=False), \
+             patch("sami.diagnostics._missing_packages", return_value=missing or []), \
              patch("sys.stdout", captured):
             code = _health_command(args)
 
@@ -54,16 +55,17 @@ class TestHealthCommand(unittest.TestCase):
         _, obj = self._run(["--json"])
         self.assertIn(obj["status"], ("ready", "degraded", "repair_required"))
 
-    def test_exit_0_when_ready_or_degraded(self):
+    def test_invalid_binary_leaves_installation_degraded(self):
         with tempfile.TemporaryDirectory() as td:
             sami_home = Path(td)
-            # Create bin and llama-server so quality shows available
+            binary = "llama-server.exe" if sys.platform == "win32" else "llama-server"
             (sami_home / "bin").mkdir()
-            (sami_home / "bin" / "llama-server").write_bytes(b"fake")
-            (sami_home / "cache" / "huggingface").mkdir(parents=True)
-            code, obj = self._run(["--json"], sami_home=sami_home)
+            (sami_home / "bin" / binary).write_bytes(b"fake")
+            with patch.dict(os.environ, {}, clear=True):
+                code, obj = self._run(["--json"], sami_home=sami_home)
             self.assertEqual(code, 0)
-            self.assertIn(obj["status"], ("ready", "degraded"))
+            self.assertEqual(obj["status"], "degraded")
+            self.assertIsNone(obj["paths"]["llama_server"])
 
     def test_cuda_only_install_is_discovered(self):
         with tempfile.TemporaryDirectory() as td:
@@ -71,11 +73,10 @@ class TestHealthCommand(unittest.TestCase):
             binary = "llama-server.exe" if sys.platform == "win32" else "llama-server"
             server = sami_home / "bin" / "cuda" / binary
             server.parent.mkdir(parents=True)
-            server.touch()
-            (sami_home / "cache" / "huggingface").mkdir(parents=True)
+            server.write_bytes(b"MZ" if sys.platform == "win32" else b"\x7fELF")
             with patch.dict(os.environ, {}, clear=True):
                 _, obj = self._run(["--json"], sami_home=sami_home)
-            self.assertEqual(obj["status"], "ready")
+            self.assertEqual(obj["status"], "degraded")
             self.assertEqual(obj["paths"]["llama_server"], str(server))
 
     def test_exit_0_when_degraded_quality_missing(self):
@@ -87,16 +88,70 @@ class TestHealthCommand(unittest.TestCase):
             # quality.available should be False
             self.assertFalse(obj["modes"]["quality"]["available"])
 
-    def test_fast_and_balanced_always_available(self):
-        _, obj = self._run(["--json"])
+    def test_balanced_requires_local_models(self):
+        with tempfile.TemporaryDirectory() as td, patch.dict(os.environ, {}, clear=True):
+            _, obj = self._run(["--json"], sami_home=Path(td))
         self.assertTrue(obj["modes"]["fast"]["available"])
-        self.assertTrue(obj["modes"]["balanced"]["available"])
+        self.assertFalse(obj["modes"]["balanced"]["available"])
 
     def test_fast_has_no_inference_server(self):
         _, obj = self._run(["--json"])
         self.assertFalse(obj["modes"]["fast"]["inference_server"])
         self.assertFalse(obj["modes"]["balanced"]["inference_server"])
         self.assertTrue(obj["modes"]["quality"]["inference_server"])
+
+    def test_ready_verification_is_tied_to_launcher_and_assets(self):
+        from sami import __version__
+        from sami.diagnostics import register_installation
+
+        with tempfile.TemporaryDirectory() as td:
+            home = Path(td)
+            launcher = home / "sami"
+            launcher.touch()
+            identity = register_installation(home, launcher)["installation_id"]
+            self.assertEqual(register_installation(home, launcher)["installation_id"], identity)
+            inventory = {
+                "llama": launcher, "gguf": (launcher, launcher), "layout": (launcher,),
+                "ocr": (launcher,), "hf_home": home, "fingerprint": {str(launcher): [10, 1]},
+            }
+            report = {
+                "schema_version": 1, "installation_id": identity, "cli_version": __version__,
+                "fingerprint": inventory["fingerprint"], "failures": [], "warnings": [],
+                "modes": {mode: {"cpu": True, "device": "cpu"} for mode in ("fast", "balanced", "quality")},
+            }
+            (home / "compatibility.json").write_text(json.dumps(report), encoding="utf-8")
+            with patch("sami.diagnostics._inventory", return_value=inventory):
+                code, obj = self._run(["--json"], sami_home=home)
+                self.assertEqual(code, 0)
+                self.assertEqual(obj["status"], "ready")
+                self.assertEqual(obj["installation_id"], identity)
+                inventory["fingerprint"] = {str(launcher): [12, 2]}
+                self.assertEqual(self._run(["--json"], sami_home=home)[1]["status"], "degraded")
+                launcher.unlink()
+                code, obj = self._run(["--json"], sami_home=home)
+                self.assertEqual(code, 3)
+                self.assertEqual(obj["status"], "repair_required")
+
+    def test_missing_package_requires_repair(self):
+        with tempfile.TemporaryDirectory() as td:
+            code, obj = self._run(["--json"], sami_home=Path(td), missing=["pymupdf"])
+        self.assertEqual(code, 3)
+        self.assertEqual(obj["status"], "repair_required")
+
+    def test_registration_does_not_prepare_models(self):
+        from sami.cli import main
+
+        with tempfile.TemporaryDirectory() as td:
+            home = Path(td) / "sami-home"
+            launcher = Path(td) / "sami"
+            launcher.touch()
+            captured = StringIO()
+            with (patch.dict(os.environ, {"SAMI_HOME": str(home)}),
+                  patch("sami.diagnostics.prepare") as prepare, patch("sys.stdout", captured)):
+                code = main(["setup", "--register-only", "--executable", str(launcher), "--json"])
+            prepare.assert_not_called()
+            self.assertEqual(code, 0)
+            self.assertEqual(json.loads(captured.getvalue())["paths"]["executable"], str(launcher))
 
 
 class TestHealthSubcommandDispatch(unittest.TestCase):

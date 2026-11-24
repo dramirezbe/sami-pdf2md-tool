@@ -13,6 +13,17 @@ from sami.contracts import _integer, _object, _string, json_value
 PROTOCOL_VERSION = 1
 
 
+def write_json_line(stream, line: str) -> None:
+    """Write UTF-8 even when the Windows process uses a legacy code page."""
+    binary = getattr(stream, "buffer", None)
+    if binary is not None:
+        binary.write((line + "\n").encode("utf-8"))
+        binary.flush()
+    else:
+        stream.write(line + "\n")
+        stream.flush()
+
+
 def _reject_constant(value: str) -> None:
     raise ValueError(f"invalid JSON numeric constant: {value}")
 
