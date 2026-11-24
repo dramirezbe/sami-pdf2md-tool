@@ -43,5 +43,26 @@
     "balanced": { "engine": "marker", "inference_server": false, "gpu_required": false, "marker_mode": "fast"     },
     "quality":  { "engine": "marker", "inference_server": true,  "gpu_required": false, "marker_mode": "balanced",
                   "note": "inference_server=true means llama-server is used. gpu_required=false: works on CPU with -ngl 0." }
+  },
+  "cli": {
+    "version": "0.2.4",
+    "protocol_version": 1,
+    "python": "3.12",
+    "wheel": "sami_pdf2md_tool-0.2.4-py3-none-any.whl",
+    "url": "https://github.com/dramirezbe/sami-pdf2md-tool/releases/download/v0.2.4/sami_pdf2md_tool-0.2.4-py3-none-any.whl",
+    "sha256": "fe5d91d7aa2d9c21d191e8a7822851dd8658cae65fdbbda91ec25e7f1e123fe3"
+  },
+  "ui": {
+    "version": "0.3.0",
+    "protocol_version": 1,
+    "release_tag": "v0.3.0",
+    "windows_x64": {
+      "asset": "SAMI-0.3.0-win-x64-setup.exe",
+      "url": "https://github.com/dramirezbe/sami-pdf2md-tool/releases/download/v0.3.0/SAMI-0.3.0-win-x64-setup.exe"
+    },
+    "linux_x64": {
+      "asset": "SAMI-0.3.0-linux-x64.AppImage",
+      "url": "https://github.com/dramirezbe/sami-pdf2md-tool/releases/download/v0.3.0/SAMI-0.3.0-linux-x64.AppImage"
+    }
   }
 }

@@ -8,13 +8,31 @@ For each PDF, sami creates a folder containing:
 
 Powered by [Marker](https://github.com/VikParuchuri/marker).
 
+## Desktop app
+
+SAMI Desktop lets you add several PDFs or folders, review the list, and start a conversion with **Convert**. It shows the active document, elapsed time, and batch progress. When a result is available, you can preview its PDF and Markdown, open the output folder, or export the document with its figures. Settings offer English and Spanish and light and dark appearance.
+
+The `0.3.0` distribution targets native Windows with a per-user installer and Linux with an AppImage. The packages include the built desktop app. Setup prepares or reuses the exact compatible CLI, starting with `0.2.4`.
+
+With the desktop release available, the quick installers below prepare the CLI and install the desktop app. Windows adds SAMI to **Installed apps**, **Start**, and the desktop. Linux adds SAMI to the application menu.
+
+To run the desktop app from a development checkout, first prepare the installed CLI with `sami setup`, then use Node.js 24 and npm.
+
+```bash
+cd ui
+npm ci
+npm start
+```
+
+`npm test` runs the desktop module tests. `npm run build` followed by `npm run test:desktop` runs the graphical workflow tests from a graphical session. On Linux CI, run the desktop tests under Xvfb.
+
 ## Quick Install
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.sh | bash
 ```
 
-This installs `uv` if needed, makes `sami` available on your PATH, and registers the executable. Run `sami setup` to prepare the models and validate all three modes before conversion. When the NVIDIA driver and available VRAM support it, SAMI downloads and verifies the CUDA build of `llama-server` and its matching runtime libraries.
+This installs `uv` if needed, registers the CLI, and prepares the local models. To install only the CLI, pass `--component cli` after `bash -s --`. When the NVIDIA driver and available VRAM support it, SAMI downloads and verifies the CUDA build of `llama-server` and its matching runtime libraries.
 
 ### Windows PowerShell
 
@@ -32,7 +50,7 @@ sami setup
 sami paper.pdf --mode balanced
 ```
 
-On x64 with an NVIDIA driver that supports CUDA 13.2 or later, the installer downloads the PyTorch CUDA wheel directly from PyTorch and verifies its SHA-256. To install a local wheel, run `install.ps1` with `-Source` followed by the wheel path.
+For CLI-only installation, run the downloaded `install.ps1` with `-Component cli`. On x64 with an NVIDIA driver that supports CUDA 13.2 or later, the installer downloads the PyTorch CUDA wheel directly from PyTorch and verifies its SHA-256. To install a local wheel, run `install.ps1` with `-Source` followed by the wheel path.
 
 ### Upgrade an installed CLI
 
@@ -159,6 +177,8 @@ sami creates `~/.sami/` on first run:
 Override with `SAMI_HOME` environment variable.
 
 ## Uninstall
+
+To remove only the desktop app, use **Installed apps** in Windows or run `bash install.sh --uninstall-ui` with the downloaded installer on Linux. This keeps the CLI and your results.
 
 ```bash
 uv tool uninstall sami-pdf2md-tool

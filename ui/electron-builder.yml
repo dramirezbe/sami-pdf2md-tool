@@ -1,0 +1,68 @@
+appId: com.dramirezbe.sami
+productName: SAMI
+artifactName: ${productName}-${version}-${os}-x64.${ext}
+
+directories:
+  output: release
+  buildResources: assets/icons
+
+files:
+  - package.json
+  - src/main.js
+  - src/preload.cjs
+  - src/cli-runner.js
+  - src/documents.js
+  - dist/**/*
+  - "!dist/**/*.map"
+
+extraResources:
+  - from: ../packaging/windows/cli-install.ps1
+    to: cli-install.ps1
+  - from: ../packaging/linux/cli-install.sh
+    to: cli-install.sh
+  - from: ../packaging/runtime-manifest.json
+    to: runtime-manifest.json
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: assets/icons/sami-icon.ico
+
+nsis:
+  artifactName: ${productName}-${version}-win-x64-setup.${ext}
+  oneClick: false
+  perMachine: false
+  allowElevation: false
+  installerLanguages: [en_US, es_ES]
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: SAMI
+  menuCategory: true
+  deleteAppDataOnUninstall: false
+  runAfterFinish: true
+  include: ../packaging/windows/installer.nsh
+
+linux:
+  syncDesktopName: true
+  target:
+    - target: AppImage
+      arch:
+        - x64
+  icon: assets/icons/sami-icon-512.png
+  category: Office
+  executableName: sami-ui
+  synopsis: Convert PDFs to Markdown
+  description: SAMI converts PDFs into structured Markdown on your computer.
+  desktop:
+    entry:
+      Name: SAMI
+      Comment: Smart Automated Markdown Interpreter
+      Categories: Office;Utility;
+      StartupWMClass: sami
+      Terminal: false
+
+appImage:
+  artifactName: ${productName}-${version}-linux-x64.${ext}

@@ -1,0 +1,140 @@
+name: SAMI desktop release
+
+on:
+  pull_request:
+    branches: [main]
+    paths: ['ui/**', 'packaging/**', 'install.sh', 'install.ps1', '.github/workflows/ui-release.yml']
+  push:
+    tags: [v0.3.0]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: win
+            package_script: package:win
+            artifact: SAMI-0.3.0-win-x64-setup.exe
+          - os: ubuntu-24.04
+            target: linux
+            package_script: package:linux
+            artifact: SAMI-0.3.0-linux-x64.AppImage
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - run: npm ci
+      - name: Check desktop release and CLI identities
+        shell: bash
+        env:
+          APP_ARTIFACT: ${{ matrix.artifact }}
+          APP_PLATFORM: ${{ matrix.target }}
+        run: >
+          node --input-type=module -e '
+          import { readFileSync } from "node:fs";
+          import { CLI_VERSION, PROTOCOL_VERSION } from "./src/cli-runner.js";
+          const manifest = JSON.parse(readFileSync("../packaging/runtime-manifest.json", "utf8"));
+          const { version } = JSON.parse(readFileSync("package.json", "utf8"));
+          const platform = process.env.APP_PLATFORM === "win" ? "windows_x64" : "linux_x64";
+          if (version !== manifest.ui.version || `v${version}` !== manifest.ui.release_tag ||
+              CLI_VERSION !== manifest.cli.version || PROTOCOL_VERSION !== manifest.cli.protocol_version ||
+              PROTOCOL_VERSION !== manifest.ui.protocol_version || process.env.APP_ARTIFACT !== manifest.ui[platform].asset) {
+            throw new Error("UI package, CLI protocol, and release manifest versions must match their declared identities.");
+          }'
+      - run: npm test
+      - run: npm run build
+
+      - name: Desktop workflow tests
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == Linux ]]; then
+            xvfb-run -a npm run test:desktop
+          else
+            npm run test:desktop
+          fi
+
+      - name: Package Linux AppImage
+        if: runner.os == 'Linux'
+        run: npm run ${{ matrix.package_script }}
+
+      - name: Package Windows installer
+        if: runner.os == 'Windows'
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npm run ${{ matrix.package_script }}
+
+      - name: Smoke test AppImage
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          chmod +x release/${{ matrix.artifact }}
+          APPIMAGE_EXTRACT_AND_RUN=1 xvfb-run -a release/${{ matrix.artifact }} --no-sandbox --smoke-test
+
+      - name: Smoke test packaged Windows app
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $app = (Resolve-Path 'release/win-unpacked/SAMI.exe').Path
+          if (-not (Test-Path $app)) { throw "Installed executable not found: $app" }
+          $process = Start-Process -FilePath $app -ArgumentList '--smoke-test' -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Packaged app smoke test failed with exit code $($process.ExitCode)." }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.target }}-x64
+          path: ui/release/${{ matrix.artifact }}
+          if-no-files-found: error
+          retention-days: 14
+
+  draft-release:
+    needs: package
+    if: github.ref == 'refs/tags/v0.3.0'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          pattern: desktop-*-x64
+          merge-multiple: true
+      - name: Add manifest, bootstraps, and checksums
+        run: |
+          cp packaging/runtime-manifest.json release-assets/
+          cp install.sh install.ps1 release-assets/
+          cp packaging/linux/cli-install.sh release-assets/cli-install-linux.sh
+          cp packaging/windows/cli-install.ps1 release-assets/cli-install-windows.ps1
+          cd release-assets
+          sha256sum SAMI-0.3.0-* runtime-manifest.json install.sh install.ps1 \
+            cli-install-linux.sh cli-install-windows.ps1 > SHA256SUMS
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v0.3.0
+          name: SAMI 0.3.0
+          draft: true
+          generate_release_notes: true
+          files: |
+            release-assets/SAMI-0.3.0-win-x64-setup.exe
+            release-assets/SAMI-0.3.0-linux-x64.AppImage
+            release-assets/runtime-manifest.json
+            release-assets/install.sh
+            release-assets/install.ps1
+            release-assets/cli-install-linux.sh
+            release-assets/cli-install-windows.ps1
+            release-assets/SHA256SUMS

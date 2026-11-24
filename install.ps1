@@ -2,125 +2,138 @@
 # SAMI_UPGRADE_V1
 [CmdletBinding()]
 param(
+    [ValidateSet('all', 'cli', 'ui')]
+    [string] $Component = 'all',
     [string] $Source,
     [string] $UpgradePython,
     [string] $UpgradeIndex
 )
 
 $ErrorActionPreference = 'Stop'
+$repository = 'dramirezbe/sami-pdf2md-tool'
+$uiVersion = '0.3.0'
+
+function Ensure-Uv {
+    if (Get-Command uv -ErrorAction SilentlyContinue) { return }
+    Write-Host 'Installing uv...'
+    $uvInstaller = Invoke-RestMethod -Uri 'https://astral.sh/uv/install.ps1' -TimeoutSec 60
+    & ([scriptblock]::Create($uvInstaller))
+    $env:PATH = "$(Join-Path $env:USERPROFILE '.local\bin');$env:PATH"
+    $null = Get-Command uv -ErrorAction Stop
+}
 
 if ($UpgradePython) {
     if (-not $Source) {
         throw 'Run sami upgrade from the installed CLI.'
     }
     $upgradeArgs = @('pip', 'install', '--python', $UpgradePython, '--upgrade-package', 'sami-pdf2md-tool')
-    if ($UpgradeIndex) {
-        $upgradeArgs += @('--index', $UpgradeIndex)
-    }
+    if ($UpgradeIndex) { $upgradeArgs += @('--index', $UpgradeIndex) }
     Write-Host 'Updating SAMI in its existing environment...'
     uv @upgradeArgs $Source
-    if ($LASTEXITCODE -ne 0) {
-        throw "SAMI upgrade failed (exit $LASTEXITCODE)."
-    }
+    if ($LASTEXITCODE -ne 0) { throw "SAMI upgrade failed (exit $LASTEXITCODE)." }
     & $UpgradePython -I -m sami.cli setup --register-only
-    if ($LASTEXITCODE -ne 0) {
-        throw "SAMI launcher registration failed (exit $LASTEXITCODE)."
-    }
+    if ($LASTEXITCODE -ne 0) { throw "SAMI launcher registration failed (exit $LASTEXITCODE)." }
     Write-Host 'SAMI upgraded.'
     return
 }
 
-function Test-NvidiaCuda {
-    if (-not (Get-Command nvidia-smi -ErrorAction SilentlyContinue)) {
-        return $false
-    }
-    try {
-        $summary = nvidia-smi 2>$null | Out-String
-    } catch {
-        return $false
-    }
-    if ($LASTEXITCODE -ne 0) {
-        return $false
-    }
-    $reported = [regex]::Match($summary, 'CUDA(?: UMD)? Version:\s*(\d+\.\d+)')
-    return $reported.Success -and ([version]$reported.Groups[1].Value -ge [version]'13.2')
-}
-
+$temporaryDirectory = Join-Path ([System.IO.Path]::GetTempPath()) ("sami-install-" + [guid]::NewGuid().ToString('N'))
+$null = New-Item -ItemType Directory -Path $temporaryDirectory
 try {
-    $samiArch = [string][System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
-} catch {
-    $samiArch = ''
-}
-if (-not $samiArch) {
-    $samiArch = $env:PROCESSOR_ARCHITEW6432
-    if (-not $samiArch) {
-        $samiArch = $env:PROCESSOR_ARCHITECTURE
-    }
-}
-if ($samiArch -eq 'AMD64') {
-    $samiArch = 'X64'
-}
-if ($samiArch -notin @('X64', 'Arm64')) {
-    if (-not $samiArch) { $samiArch = 'unknown' }
-    throw "Unsupported architecture: $samiArch. SAMI supports x64 and ARM64 on Windows."
-}
-
-if (-not $Source) {
-    $Source = 'https://github.com/dramirezbe/sami-pdf2md-tool/archive/refs/heads/main.zip'
-    if ($MyInvocation.MyCommand.Path -and $PSScriptRoot) {
-        if (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'pyproject.toml')) {
-            $Source = $PSScriptRoot
+    if ($Source) {
+        Ensure-Uv
+        Write-Host 'Installing SAMI from the requested source...'
+        $installArgs = @('tool', 'install', '--python', '3.12', '--force')
+        $architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
+        $cuda = $false
+        if ($architecture -eq 'X64' -and (Get-Command nvidia-smi -ErrorAction SilentlyContinue)) {
+            $summary = nvidia-smi 2>$null | Out-String
+            $reported = [regex]::Match($summary, 'CUDA(?: UMD)? Version:\s*(\d+\.\d+)')
+            $cuda = $LASTEXITCODE -eq 0 -and $reported.Success -and ([version]$reported.Groups[1].Value -ge [version]'13.2')
         }
+        if ($cuda) {
+            $torchUrl = 'https://download.pytorch.org/whl/cu132/torch-2.14.1%2Bcu132-cp312-cp312-win_amd64.whl'
+            $torchSha256 = '882a670a7e2a17f2eb351406dc4a235455fd9256ac737752de5f1279e2a1df8c'
+            $installArgs += @(
+                '--index', 'https://download.pytorch.org/whl/cu132',
+                '--with', "torch @ ${torchUrl}#sha256=$torchSha256",
+                '--with', 'torchvision==0.29.1+cu132'
+            )
+            Write-Host 'Installing SAMI with PyTorch CUDA 13.2...'
+        }
+        & uv @installArgs $Source
+        if ($LASTEXITCODE -ne 0) { throw "SAMI installation failed (exit $LASTEXITCODE)." }
+        $binDirectory = (uv tool dir --bin).Trim()
+        $launcher = Join-Path $binDirectory 'sami.exe'
+        uv tool update-shell
+        if ($LASTEXITCODE -ne 0) { throw "Could not update the CLI PATH (exit $LASTEXITCODE)." }
+        if (($env:PATH -split ';') -notcontains $binDirectory) { $env:PATH = "$binDirectory;$env:PATH" }
+        & $launcher setup --register-only --executable $launcher
+        if ($LASTEXITCODE -ne 0) { throw "SAMI launcher registration failed (exit $LASTEXITCODE)." }
+        return
     }
-}
 
-if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
-    Write-Host 'Installing uv...'
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "irm https://astral.sh/uv/install.ps1 | iex"
-    if ($LASTEXITCODE -ne 0) {
-        throw "uv installation failed (exit $LASTEXITCODE)."
+    $localRoot = $PSScriptRoot
+    if (-not $localRoot) {
+        $candidateRoot = (Get-Location).Path
+        if (Test-Path -LiteralPath (Join-Path $candidateRoot 'pyproject.toml')) { $localRoot = $candidateRoot }
     }
-    $env:PATH = "$(Join-Path $env:USERPROFILE '.local\bin');$env:PATH"
-    $null = Get-Command uv -ErrorAction Stop
-}
+    $helper = if ($localRoot) { Join-Path $localRoot 'packaging\windows\cli-install.ps1' } else { $null }
+    if (-not $helper -or -not (Test-Path -LiteralPath $helper)) {
+        $helper = Join-Path $temporaryDirectory 'cli-install.ps1'
+        $helperUrl = "https://raw.githubusercontent.com/$repository/main/packaging/windows/cli-install.ps1"
+        Write-Host 'Fetching the shared CLI installation steps...'
+        Invoke-WebRequest -Uri $helperUrl -OutFile $helper -TimeoutSec 60
+    }
 
-$installArgs = @('tool', 'install', '--force', '--python', '3.12')
-if ($samiArch -eq 'X64' -and (Test-NvidiaCuda)) {
-    # Pin the matching Windows wheels. Use the direct PyTorch host for the
-    # large torch wheel and verify it against the hash in the CUDA 13.2 index.
-    $torchUrl = 'https://download.pytorch.org/whl/cu132/torch-2.14.1%2Bcu132-cp312-cp312-win_amd64.whl'
-    $torchSha256 = '882a670a7e2a17f2eb351406dc4a235455fd9256ac737752de5f1279e2a1df8c'
-    $installArgs += @(
-        '--index', 'https://download.pytorch.org/whl/cu132',
-        '--with', "torch @ ${torchUrl}#sha256=$torchSha256",
-        '--with', 'torchvision==0.29.1+cu132'
-    )
-    Write-Host 'Installing SAMI with PyTorch CUDA 13.2...'
-} else {
-    Write-Host 'Installing SAMI with the default PyTorch dependencies...'
-}
+    if ($Component -in @('cli', 'all')) {
+        & $helper -Prepare
+        if ($LASTEXITCODE -ne 0) { throw "SAMI CLI installation failed (exit $LASTEXITCODE)." }
+    }
 
-uv @installArgs $Source
-if ($LASTEXITCODE -ne 0) {
-    throw "SAMI installation failed (exit $LASTEXITCODE)."
+    if ($Component -in @('ui', 'all')) {
+        $architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
+        if ($architecture -ne 'X64') {
+            if ($Component -eq 'all') {
+                Write-Warning 'The SAMI CLI is ready. The SAMI desktop installer currently supports Windows x64 only.'
+                return
+            }
+            throw 'The SAMI desktop installer currently supports Windows x64 only.'
+        }
+        if ($Component -eq 'ui') {
+            & $helper -CheckOnly
+            if ($LASTEXITCODE -ne 0) { throw 'UI-only installation requires a healthy, matching SAMI CLI.' }
+        }
+        $asset = "SAMI-$uiVersion-win-x64-setup.exe"
+        $releaseUrl = "https://github.com/$repository/releases/download/v$uiVersion"
+        $installer = Join-Path $temporaryDirectory $asset
+        $sumFile = Join-Path $temporaryDirectory 'SHA256SUMS'
+        try {
+            Write-Host 'Downloading the SAMI desktop app...'
+            Invoke-WebRequest -Uri "$releaseUrl/$asset" -OutFile $installer -TimeoutSec 300
+            Invoke-WebRequest -Uri "$releaseUrl/SHA256SUMS" -OutFile $sumFile -TimeoutSec 60
+        } catch {
+            $statusCode = $null
+            if ($_.Exception.Response -and $_.Exception.Response.StatusCode) {
+                $statusCode = [int]$_.Exception.Response.StatusCode
+            }
+            if ($Component -eq 'all' -and $statusCode -eq 404) {
+                Write-Warning "SAMI CLI is ready. The SAMI $uiVersion desktop release is not published yet."
+                return
+            }
+            throw
+        }
+        $expected = Select-String -Path $sumFile -Pattern ("^([0-9a-fA-F]{64})\s+\*?" + [regex]::Escape($asset) + '$') |
+            Select-Object -First 1
+        if (-not $expected) { throw 'The desktop app checksum is missing from SHA256SUMS.' }
+        $actual = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash
+        if ($actual -ne $expected.Matches[0].Groups[1].Value) {
+            throw 'The desktop app checksum does not match the release.'
+        }
+        Write-Host 'Starting the verified SAMI desktop installer...'
+        $process = Start-Process -FilePath $installer -Wait -PassThru
+        if ($process.ExitCode -ne 0) { throw "SAMI desktop installation failed (exit $($process.ExitCode))." }
+    }
+} finally {
+    Remove-Item -LiteralPath $temporaryDirectory -Recurse -Force -ErrorAction SilentlyContinue
 }
-
-$binDir = uv tool dir --bin
-if ($LASTEXITCODE -ne 0 -or -not $binDir) {
-    throw 'Could not locate the uv tool executable directory.'
-}
-uv tool update-shell
-if ($LASTEXITCODE -ne 0) {
-    throw "Could not update PATH for uv tools (exit $LASTEXITCODE)."
-}
-if (($env:PATH -split ';') -notcontains $binDir) {
-    $env:PATH = "$binDir;$env:PATH"
-}
-
-$samiLauncher = Join-Path $binDir 'sami.exe'
-& $samiLauncher setup --register-only --executable $samiLauncher
-if ($LASTEXITCODE -ne 0) {
-    throw "SAMI launcher registration failed (exit $LASTEXITCODE)."
-}
-
-Write-Host 'SAMI installed. Run sami setup to prepare and verify all modes.'
