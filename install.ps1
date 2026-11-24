@@ -42,16 +42,31 @@ function Test-NvidiaCuda {
     return $reported.Success -and ([version]$reported.Groups[1].Value -ge [version]'13.2')
 }
 
-$arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
-if ($arch -notin @('X64', 'Arm64')) {
-    throw "Unsupported architecture: $arch. SAMI supports x64 and ARM64 on Windows."
+try {
+    $samiArch = [string][System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
+} catch {
+    $samiArch = ''
+}
+if (-not $samiArch) {
+    $samiArch = $env:PROCESSOR_ARCHITEW6432
+    if (-not $samiArch) {
+        $samiArch = $env:PROCESSOR_ARCHITECTURE
+    }
+}
+if ($samiArch -eq 'AMD64') {
+    $samiArch = 'X64'
+}
+if ($samiArch -notin @('X64', 'Arm64')) {
+    if (-not $samiArch) { $samiArch = 'unknown' }
+    throw "Unsupported architecture: $samiArch. SAMI supports x64 and ARM64 on Windows."
 }
 
 if (-not $Source) {
-    if ($PSScriptRoot -and (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'pyproject.toml'))) {
-        $Source = $PSScriptRoot
-    } else {
-        $Source = 'git+https://github.com/dramirezbe/sami-pdf2md-tool.git'
+    $Source = 'https://github.com/dramirezbe/sami-pdf2md-tool/archive/refs/heads/main.zip'
+    if ($MyInvocation.MyCommand.Path -and $PSScriptRoot) {
+        if (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'pyproject.toml')) {
+            $Source = $PSScriptRoot
+        }
     }
 }
 
@@ -66,7 +81,7 @@ if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
 }
 
 $installArgs = @('tool', 'install', '--force', '--python', '3.12')
-if ($arch -eq 'X64' -and (Test-NvidiaCuda)) {
+if ($samiArch -eq 'X64' -and (Test-NvidiaCuda)) {
     # Pin the matching Windows wheels. Use the direct PyTorch host for the
     # large torch wheel and verify it against the hash in the CUDA 13.2 index.
     $torchUrl = 'https://download.pytorch.org/whl/cu132/torch-2.14.1%2Bcu132-cp312-cp312-win_amd64.whl'

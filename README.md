@@ -21,10 +21,7 @@ This installs `uv` (if missing) and `sami` globally. On first use, SAMI download
 Install from PowerShell 5.1 or later:
 
 ```powershell
-$repo = 'dramirezbe/sami-pdf2md-tool'
-$ref = 'main'
-$installer = irm "https://raw.githubusercontent.com/$repo/refs/heads/$ref/install.ps1"
-& ([scriptblock]::Create($installer)) -Source "git+https://github.com/${repo}.git@$ref"
+irm https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.ps1 | iex
 ```
 
 Verify the installation and convert a PDF:
@@ -34,7 +31,7 @@ sami --version
 sami paper.pdf --mode balanced
 ```
 
-On x64 with an NVIDIA driver that supports CUDA 13.2 or later, the installer downloads the PyTorch CUDA wheel directly from PyTorch and verifies its SHA-256. For a local wheel, use its path as the value of `-Source`.
+On x64 with an NVIDIA driver that supports CUDA 13.2 or later, the installer downloads the PyTorch CUDA wheel directly from PyTorch and verifies its SHA-256. To install a local wheel, run `install.ps1` with `-Source` followed by the wheel path.
 
 ### Upgrade an installed CLI
 
