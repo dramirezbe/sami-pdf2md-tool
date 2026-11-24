@@ -18,7 +18,7 @@ find_uv() {
     local candidate="${UV_INSTALL_DIR:-$HOME/.local/bin}/uv"
     if [[ -x "$candidate" ]]; then printf '%s\n' "$candidate"; return; fi
     info 'Installing uv and its managed Python runtime...'
-    curl -LsSf --connect-timeout 15 --max-time 120 https://astral.sh/uv/install.sh | sh
+    curl -LsSf --connect-timeout 15 --max-time 120 https://astral.sh/uv/install.sh | sh >&2
     [[ -x "$candidate" ]] || fail 'Could not install uv.'
     printf '%s\n' "$candidate"
 }
@@ -70,12 +70,13 @@ install_cli() {
         if [[ -x "$cli_python" ]]; then
             info 'Updating the registered SAMI environment...'
             "$uv" pip install --python "$cli_python" --upgrade "$wheel"
+            if [[ ! -x "$executable" ]]; then executable="$(dirname "$cli_python")/sami"; fi
         else
             info 'Installing SAMI CLI...'
             "$uv" tool install --python 3.12 --force "$wheel"
+            executable="$("$uv" tool dir --bin)/sami"
+            cli_python="$("$uv" tool dir)/sami-pdf2md-tool/bin/python"
         fi
-        executable="$("$uv" tool dir --bin)/sami"
-        cli_python="$("$uv" tool dir)/sami-pdf2md-tool/bin/python"
         [[ -x "$executable" && -x "$cli_python" ]] || fail 'SAMI CLI installation did not create its launcher.'
         "$cli_python" -I -m sami.cli setup --register-only --executable "$executable"
     fi
