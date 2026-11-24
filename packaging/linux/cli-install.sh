@@ -15,10 +15,11 @@ fail() { printf '[SAMI] ERROR: %s\n' "$*" >&2; exit 1; }
 
 find_uv() {
     if command -v uv >/dev/null 2>&1; then command -v uv; return; fi
-    local candidate="${UV_INSTALL_DIR:-$HOME/.local/bin}/uv"
+    local install_dir="${UV_INSTALL_DIR:-${XDG_BIN_HOME:-$HOME/.local/bin}}"
+    local candidate="$install_dir/uv"
     if [[ -x "$candidate" ]]; then printf '%s\n' "$candidate"; return; fi
     info 'Installing uv and its managed Python runtime...'
-    curl -LsSf --connect-timeout 15 --max-time 120 https://astral.sh/uv/install.sh | sh >&2
+    curl -LsSf --connect-timeout 15 --max-time 120 https://astral.sh/uv/install.sh | UV_INSTALL_DIR="$install_dir" sh >&2
     [[ -x "$candidate" ]] || fail 'Could not install uv.'
     printf '%s\n' "$candidate"
 }
