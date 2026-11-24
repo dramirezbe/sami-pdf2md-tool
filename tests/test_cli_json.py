@@ -58,7 +58,7 @@ class CliJsonTests(unittest.TestCase):
 
             self.assertEqual(exit_code, 0)
             self.assertEqual(len(calls), 1)
-            app_home.assert_called_once_with(require_llama_server=False)
+            app_home.assert_called_once_with()
             request, dispatch_kwargs = calls[0]
             self.assertEqual(request.mode, "fast")
             self.assertEqual(request.device, "cpu")

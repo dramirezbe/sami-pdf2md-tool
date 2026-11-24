@@ -6,6 +6,9 @@ import signal
 import subprocess
 import sys
 import threading
+from contextlib import contextmanager
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Set
 
 # ---------------------------------------------------------------------------
@@ -266,3 +269,57 @@ def _find_children_proc(name: str) -> Set[int]:
         except OSError:
             pass
     return found
+
+
+# Surya 0.22 shares discovered servers across clients and leaves its batch
+# services alive. Give each CLI run its own discovery state so it can safely
+# release the GPU even when another SAMI run is active.
+@contextmanager
+def managed_surya_servers():
+    """Isolate Surya's implicit servers and stop the ones this run starts."""
+    import psutil
+    from surya.inference.backends import spawn
+    from surya.settings import settings
+
+    existing = set(psutil.Process().children(recursive=True))
+    with TemporaryDirectory(prefix="sami-surya-") as state_dir:
+        original_cache = spawn._cache_dir
+        original_keep_alive = settings.SURYA_INFERENCE_KEEP_ALIVE
+        spawn._cache_dir = lambda: Path(state_dir)
+        # SAMI owns cleanup for this private namespace, including the VLM.
+        settings.SURYA_INFERENCE_KEEP_ALIVE = True
+        try:
+            yield
+        finally:
+            try:
+                _stop_surya_children(settings.LLAMA_CPP_BINARY, existing)
+            finally:
+                settings.SURYA_INFERENCE_KEEP_ALIVE = original_keep_alive
+                spawn._cache_dir = original_cache
+
+
+def _stop_surya_children(llama_binary: str, existing: set) -> None:
+    import psutil
+
+    servers = []
+    llama_names = {"llama-server", "llama-server.exe", Path(llama_binary).name}
+    for child in psutil.Process().children(recursive=True):
+        try:
+            if child in existing:
+                continue
+            args = child.cmdline()
+            is_surya = len(args) >= 3 and args[1] == "-m" and (
+                args[2].startswith("surya.") and args[2].endswith(".server")
+            )
+            if is_surya or child.name() in llama_names:
+                child.terminate()
+                servers.append(child)
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+    _, alive = psutil.wait_procs(servers, timeout=3)
+    for child in alive:
+        try:
+            child.kill()
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+    psutil.wait_procs(alive, timeout=2)

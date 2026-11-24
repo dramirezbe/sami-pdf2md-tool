@@ -65,6 +65,19 @@ class TestHealthCommand(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertIn(obj["status"], ("ready", "degraded"))
 
+    def test_cuda_only_install_is_discovered(self):
+        with tempfile.TemporaryDirectory() as td:
+            sami_home = Path(td)
+            binary = "llama-server.exe" if sys.platform == "win32" else "llama-server"
+            server = sami_home / "bin" / "cuda" / binary
+            server.parent.mkdir(parents=True)
+            server.touch()
+            (sami_home / "cache" / "huggingface").mkdir(parents=True)
+            with patch.dict(os.environ, {}, clear=True):
+                _, obj = self._run(["--json"], sami_home=sami_home)
+            self.assertEqual(obj["status"], "ready")
+            self.assertEqual(obj["paths"]["llama_server"], str(server))
+
     def test_exit_0_when_degraded_quality_missing(self):
         with tempfile.TemporaryDirectory() as td:
             sami_home = Path(td)

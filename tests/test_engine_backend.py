@@ -1,15 +1,4 @@
-"""Tests for doc-06 engine backend and GPU policy.
-
-Covers:
-- compute_ngl() VRAM ladder: >=8 / 4-8 / <4 / None -> full/partial/cpu
-- hardware.gpu_info() structure
-- _configure_vlm_backend() sets llama.cpp env vars; never docker/vllm
-- quality path calls _configure_vlm_backend(); balanced does not
-- Public mode is NEVER changed by hardware
-- _locate_gguf_paths() respects env overrides
-
-No real GPU, no Torch import, no model loading.
-"""
+"""Tests for GPU policy and Marker backend configuration."""
 from __future__ import annotations
 
 import os
@@ -18,53 +7,6 @@ import types
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-
-# ---------------------------------------------------------------------------
-# hardware.compute_ngl
-# ---------------------------------------------------------------------------
-
-class TestComputeNgl(unittest.TestCase):
-
-    def test_full_offload_at_8gb(self):
-        ngl, tier = self._ngl(8.0)
-        self.assertEqual(ngl, -1)
-        self.assertEqual(tier, "full")
-
-    def test_full_offload_above_8gb(self):
-        ngl, tier = self._ngl(16.0)
-        self.assertEqual(ngl, -1)
-        self.assertEqual(tier, "full")
-
-    def test_partial_offload_between_4_and_8(self):
-        ngl, tier = self._ngl(5.5)
-        self.assertGreater(ngl, 0)
-        self.assertEqual(tier, "partial")
-
-    def test_partial_offload_at_4gb_boundary(self):
-        ngl, tier = self._ngl(4.0)
-        self.assertGreater(ngl, 0)
-        self.assertEqual(tier, "partial")
-
-    def test_cpu_below_4gb(self):
-        ngl, tier = self._ngl(3.9)
-        self.assertEqual(ngl, 0)
-        self.assertEqual(tier, "cpu")
-
-    def test_cpu_at_zero(self):
-        ngl, tier = self._ngl(0.0)
-        self.assertEqual(ngl, 0)
-        self.assertEqual(tier, "cpu")
-
-    def test_cpu_when_none(self):
-        ngl, tier = self._ngl(None)
-        self.assertEqual(ngl, 0)
-        self.assertEqual(tier, "cpu")
-
-    @staticmethod
-    def _ngl(vram_gb):
-        from sami.hardware import compute_ngl
-        return compute_ngl(vram_gb)
 
 
 # ---------------------------------------------------------------------------
@@ -85,11 +27,11 @@ class TestGpuInfo(unittest.TestCase):
 
         expected_keys = {
             "physical_gpu", "driver_version", "torch_cuda",
-            "vram_total_gb", "vram_free_gb", "ngl", "ngl_tier", "source",
+            "vram_total_gb", "vram_free_gb", "source",
         }
         self.assertEqual(set(info.keys()), expected_keys)
 
-    def test_no_gpu_produces_cpu_tier(self):
+    def test_no_gpu_leaves_vram_unknown(self):
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=1, stdout="")
             # Torch unavailable
@@ -98,8 +40,7 @@ class TestGpuInfo(unittest.TestCase):
                 import sami.hardware as hw
                 reload(hw)
                 info = hw.gpu_info()
-        self.assertEqual(info["ngl_tier"], "cpu")
-        self.assertEqual(info["ngl"], 0)
+        self.assertIsNone(info["vram_free_gb"])
         self.assertIsNone(info["physical_gpu"])
 
     def test_nvidia_smi_data_used(self):
@@ -126,180 +67,144 @@ class TestGpuInfo(unittest.TestCase):
 
 class TestConfigureVlmBackend(unittest.TestCase):
 
-    def _call(self, ngl, ngl_tier, tmpdir=None):
+    def _call(self, *, cuda=False, fit=True, **overrides):
         from sami.engines.marker import _configure_vlm_backend
+
         logs = []
-        env_before = dict(os.environ)
-        # Remove keys we're testing so defaults get set
-        for k in ("SURYA_INFERENCE_BACKEND", "LLAMA_CPP_NGL",
-                  "SURYA_GGUF_LOCAL_MODEL_PATH", "SURYA_GGUF_LOCAL_MMPROJ_PATH"):
-            os.environ.pop(k, None)
-        try:
-            _configure_vlm_backend(ngl, ngl_tier, logs.append, tmpdir)
-            return dict(os.environ), logs
-        finally:
-            # Restore env
-            for k in ("SURYA_INFERENCE_BACKEND", "LLAMA_CPP_NGL",
-                      "SURYA_GGUF_LOCAL_MODEL_PATH", "SURYA_GGUF_LOCAL_MMPROJ_PATH"):
-                os.environ.pop(k, None)
-            os.environ.update({k: v for k, v in env_before.items()
-                                if k in ("SURYA_INFERENCE_BACKEND", "LLAMA_CPP_NGL",
-                                         "SURYA_GGUF_LOCAL_MODEL_PATH",
-                                         "SURYA_GGUF_LOCAL_MMPROJ_PATH")})
+        with (
+            patch.dict(os.environ, overrides, clear=True),
+            patch("sami.llama_runtime.ensure_server", return_value=(Path("llama-server"), cuda)) as ensure,
+            patch("sami.llama_runtime.supports_vram_fit", return_value=fit),
+        ):
+            use_cuda = _configure_vlm_backend(logs.append, Path("."))
+            return dict(os.environ), logs, use_cuda, ensure
 
-    def test_sets_llamacpp_backend(self):
-        env, _ = self._call(0, "cpu")
-        self.assertEqual(env.get("SURYA_INFERENCE_BACKEND"), "llamacpp")
+    def test_uses_cpu_without_a_cuda_runtime(self):
+        env, logs, use_cuda, _ = self._call()
+        self.assertFalse(use_cuda)
+        self.assertEqual(env["SURYA_INFERENCE_BACKEND"], "llamacpp")
+        self.assertEqual(env["LLAMA_CPP_NGL"], "0")
+        self.assertEqual(env["LLAMA_CPP_EXTRA_ARGS"], "--device none")
+        self.assertIn("CPU", logs[-1])
 
-    def test_never_sets_vllm_or_docker(self):
-        env, _ = self._call(-1, "full")
-        backend = env.get("SURYA_INFERENCE_BACKEND", "")
-        self.assertNotIn("vllm", backend.lower())
-        self.assertNotIn("docker", backend.lower())
+    def test_cuda_runtime_fits_layers_when_loading_the_model(self):
+        env, logs, use_cuda, ensure = self._call(cuda=True)
+        self.assertTrue(use_cuda)
+        self.assertTrue(ensure.call_args.kwargs["want_cuda"])
+        self.assertEqual(env["LLAMA_CPP_NGL"], "0")
+        self.assertEqual(env["LLAMA_CPP_EXTRA_ARGS"], "--n-gpu-layers auto --fit on")
+        self.assertNotIn("SURYA_INFERENCE_PARALLEL", env)
+        self.assertIn("automatic layer fitting", logs[-1])
 
-    def test_full_offload_sets_ngl_999(self):
-        # -1 means "all layers" → converted to 999 for llama-server
-        env, _ = self._call(-1, "full")
-        self.assertEqual(env.get("LLAMA_CPP_NGL"), "999")
+    def test_cuda_runtime_without_fitting_support_uses_cpu(self):
+        env, logs, use_cuda, _ = self._call(cuda=True, fit=False)
+        self.assertFalse(use_cuda)
+        self.assertEqual(env["LLAMA_CPP_EXTRA_ARGS"], "--device none")
+        self.assertIn("lacks automatic VRAM fitting", logs[0])
 
-    def test_cpu_sets_ngl_0(self):
-        env, _ = self._call(0, "cpu")
-        self.assertEqual(env.get("LLAMA_CPP_NGL"), "0")
+    def test_manual_layer_count_works_without_fitting_support(self):
+        env, _, use_cuda, _ = self._call(cuda=True, fit=False, LLAMA_CPP_NGL="20")
+        self.assertTrue(use_cuda)
+        self.assertEqual(env["LLAMA_CPP_NGL"], "20")
+        self.assertNotIn("LLAMA_CPP_EXTRA_ARGS", env)
+        self.assertEqual(self._call(cuda=True, LLAMA_CPP_NGL="-1")[0]["LLAMA_CPP_NGL"], "999")
 
-    def test_partial_sets_ngl_value(self):
-        env, _ = self._call(20, "partial")
-        self.assertEqual(env.get("LLAMA_CPP_NGL"), "20")
+    def test_explicit_cpu_disables_automatic_fitting(self):
+        for override in ({"LLAMA_CPP_NGL": "0"}, {"TORCH_DEVICE": "cpu"}):
+            with self.subTest(override=override):
+                env, _, use_cuda, ensure = self._call(**override)
+                self.assertFalse(use_cuda)
+                self.assertFalse(ensure.call_args.kwargs["want_cuda"])
+                self.assertEqual(env["LLAMA_CPP_NGL"], "0")
 
     def test_respects_existing_backend_override(self):
-        """If SURYA_INFERENCE_BACKEND is already set, setdefault keeps it."""
-        from sami.engines.marker import _configure_vlm_backend
-        os.environ["SURYA_INFERENCE_BACKEND"] = "llamacpp_custom"
-        try:
-            _configure_vlm_backend(0, "cpu", lambda _: None, None)
-            self.assertEqual(os.environ["SURYA_INFERENCE_BACKEND"], "llamacpp_custom")
-        finally:
-            os.environ.pop("SURYA_INFERENCE_BACKEND", None)
-
-    def test_logs_tier(self):
-        _, logs = self._call(0, "cpu")
-        self.assertTrue(any("cpu" in m.lower() or "-ngl 0" in m for m in logs),
-                        f"Expected CPU log, got: {logs}")
+        env, _, _, ensure = self._call(SURYA_INFERENCE_BACKEND="vllm")
+        self.assertEqual(env["SURYA_INFERENCE_BACKEND"], "vllm")
+        self.assertNotIn("LLAMA_CPP_NGL", env)
+        ensure.assert_not_called()
 
     def test_gguf_paths_set_when_found(self):
-        """When GGUF files exist in the cache, the env vars are set."""
-        import tempfile
-        with tempfile.TemporaryDirectory() as td:
-            # Build a fake HF cache layout
-            snap = Path(td) / "hub" / "models--datalab-to--surya-ocr-2-gguf" / "snapshots" / "abc123"
-            snap.mkdir(parents=True)
-            (snap / "surya-2.gguf").write_bytes(b"fake")
-            (snap / "surya-2-mmproj.gguf").write_bytes(b"fake")
+        from tempfile import TemporaryDirectory
 
-            orig_hf = os.environ.get("HF_HOME")
-            os.environ["HF_HOME"] = td
-            os.environ.pop("SURYA_GGUF_LOCAL_MODEL_PATH", None)
-            os.environ.pop("SURYA_GGUF_LOCAL_MMPROJ_PATH", None)
-            try:
-                from sami.engines.marker import _configure_vlm_backend
-                _configure_vlm_backend(0, "cpu", lambda _: None, None)
-                self.assertIn("surya-2.gguf", os.environ.get("SURYA_GGUF_LOCAL_MODEL_PATH", ""))
-                self.assertIn("surya-2-mmproj.gguf", os.environ.get("SURYA_GGUF_LOCAL_MMPROJ_PATH", ""))
-            finally:
-                os.environ.pop("SURYA_GGUF_LOCAL_MODEL_PATH", None)
-                os.environ.pop("SURYA_GGUF_LOCAL_MMPROJ_PATH", None)
-                os.environ.pop("LLAMA_CPP_NGL", None)
-                os.environ.pop("SURYA_INFERENCE_BACKEND", None)
-                if orig_hf is not None:
-                    os.environ["HF_HOME"] = orig_hf
-                else:
-                    os.environ.pop("HF_HOME", None)
+        with TemporaryDirectory() as td:
+            snapshots = Path(td) / "hub" / "models--datalab-to--surya-ocr-2-gguf" / "snapshots" / "abc123"
+            snapshots.mkdir(parents=True)
+            (snapshots / "surya-2.gguf").touch()
+            (snapshots / "surya-2-mmproj.gguf").touch()
+            env, _, _, _ = self._call(HF_HOME=td)
+            self.assertEqual(env["SURYA_GGUF_LOCAL_MODEL_PATH"], str(snapshots / "surya-2.gguf"))
+            self.assertEqual(env["SURYA_GGUF_LOCAL_MMPROJ_PATH"], str(snapshots / "surya-2-mmproj.gguf"))
 
-
-# ---------------------------------------------------------------------------
-# build_converter: quality path calls _configure_vlm_backend, balanced does not
-# ---------------------------------------------------------------------------
 
 class TestBuildConverterBackendDispatch(unittest.TestCase):
-    """build_converter() must call _configure_vlm_backend for quality VLM
-    (marker_mode="balanced") and must NOT call it for balanced (RF-DETR,
-    marker_mode="fast").  We mock heavy imports so no model loading occurs."""
+    def test_both_marker_profiles_pass_llamacpp_explicitly(self):
+        from sami.engines.marker import build_converter
 
-    def _make_cpu_config(self):
-        return {
-            "physical_cores": 4,
-            "target_threads": 4,
-            "torch_threads": 4,
-            "pdftext_workers": 1,
-        }
+        def create_model_dict(*, inference_backend):
+            self.assertEqual(inference_backend, "llamacpp")
+            self.assertEqual(os.environ["LLAMA_CPP_EXTRA_ARGS"], "--n-gpu-layers auto --fit on")
+            raise RuntimeError("stop before model startup")
 
-    def test_quality_path_calls_configure_vlm_backend(self):
-        called = []
+        with patch.dict(sys.modules, {
+            "torch": types.SimpleNamespace(set_num_threads=MagicMock()),
+            "marker.models": types.SimpleNamespace(create_model_dict=create_model_dict),
+            "marker.config.parser": types.SimpleNamespace(ConfigParser=MagicMock()),
+            "surya.settings": types.SimpleNamespace(settings=types.SimpleNamespace()),
+        }), patch("sami.hardware.gpu_info"), patch("sami.hardware.describe_gpu"), patch(
+            "sami.llama_runtime.ensure_server", return_value=(Path("llama-server"), True),
+        ), patch("sami.llama_runtime.supports_vram_fit", return_value=True):
+            for profile in ("fast", "balanced"):
+                with self.subTest(profile=profile), patch.dict(os.environ, {}, clear=True):
+                    with self.assertRaisesRegex(RuntimeError, "stop before model startup"):
+                        build_converter(
+                            profile, cpu_config={
+                                "torch_threads": 1, "pdftext_workers": 1,
+                                "physical_cores": 1, "target_threads": 1,
+                            },
+                            logger=lambda _: None, stage_logger=None, stage_done_logger=None,
+                            app_home=Path("."),
+                        )
 
-        def fake_configure(ngl, tier, logger, app_home):
-            called.append((ngl, tier))
 
-        with self._patch_heavy(fake_configure) as _:
-            from importlib import reload
-            import sami.engines.marker as m
-            reload(m)
-            with patch.object(m, "_configure_vlm_backend", fake_configure):
-                try:
-                    m.build_converter(
-                        "balanced",  # quality VLM uses Marker internal mode "balanced"
-                        cpu_config=self._make_cpu_config(),
-                        logger=lambda *a, **kw: None,
-                        stage_logger=lambda *a, **kw: None,
-                        stage_done_logger=lambda *a, **kw: None,
-                    )
-                except Exception:
-                    pass  # model loading will fail — we only care about the call
+class TestLlamaRuntime(unittest.TestCase):
+    def test_picks_newest_compatible_pair(self):
+        from sami.llama_runtime import _select_assets
 
-        self.assertTrue(len(called) >= 1, "Expected _configure_vlm_backend to be called for quality VLM")
+        def asset(version, runtime=False):
+            prefix = "cudart-" if runtime else ""
+            return {"name": f"{prefix}llama-b123-bin-ubuntu-cuda-{version}-x64.tar.gz"}
 
-    def test_balanced_path_does_not_call_configure_vlm_backend(self):
-        called = []
+        older = (asset("12.8"), asset("12.8", runtime=True))
+        assets = [*older, asset("13.3"), asset("13.5"), asset("13.5", runtime=True)]
+        kwargs = {"platform_id": "ubuntu", "arch": "x64", "extension": ".tar.gz"}
+        self.assertEqual(_select_assets(assets, driver_version=(13, 3), **kwargs), older)
+        self.assertEqual(_select_assets(assets, driver_version=(13, 5), **kwargs), tuple(assets[-2:]))
 
-        def fake_configure(ngl, tier, logger, app_home):
-            called.append((ngl, tier))
 
-        with self._patch_heavy(fake_configure):
-            from importlib import reload
-            import sami.engines.marker as m
-            reload(m)
-            with patch.object(m, "_configure_vlm_backend", fake_configure):
-                try:
-                    m.build_converter(
-                        "fast",  # balanced public mode uses Marker internal "fast" (RF-DETR)
-                        cpu_config=self._make_cpu_config(),
-                        logger=lambda *a, **kw: None,
-                        stage_logger=lambda *a, **kw: None,
-                        stage_done_logger=lambda *a, **kw: None,
-                    )
-                except Exception:
-                    pass  # model loading will fail — we only care
+class TestSuryaCleanup(unittest.TestCase):
+    def test_only_terminates_servers_started_by_this_run(self):
+        from sami.processes import _stop_surya_children
 
-        self.assertEqual(called, [], "balanced (RF-DETR) must NOT call _configure_vlm_backend")
-
-    @staticmethod
-    def _patch_heavy(fake_configure):
-        """Mock out torch and marker so no real imports happen."""
-        fake_torch = types.ModuleType("torch")
-        fake_torch.cuda = MagicMock()
-        fake_torch.cuda.is_available = MagicMock(return_value=False)
-        fake_torch.set_num_threads = MagicMock()
-
-        fake_marker_models = types.ModuleType("marker.models")
-        fake_marker_models.create_model_dict = MagicMock(side_effect=RuntimeError("no models in test"))
-        fake_marker_config = types.ModuleType("marker.config")
-        fake_marker_config_parser = types.ModuleType("marker.config.parser")
-        fake_marker_config_parser.ConfigParser = MagicMock()
-
-        return patch.dict(sys.modules, {
-            "torch": fake_torch,
-            "marker.models": fake_marker_models,
-            "marker.config": fake_marker_config,
-            "marker.config.parser": fake_marker_config_parser,
-        })
+        owned = MagicMock()
+        owned.cmdline.return_value = ["python", "-m", "surya.fast_layout.server"]
+        existing = MagicMock()
+        existing.cmdline.return_value = ["python", "-m", "surya.ocr_error.server"]
+        unrelated = MagicMock()
+        unrelated.name.return_value = "python"
+        unrelated.cmdline.return_value = ["python", "script.py"]
+        llama = MagicMock()
+        llama.name.return_value = "llama-server"
+        llama.cmdline.return_value = ["llama-server", "--port", "12345"]
+        with (
+            patch("psutil.Process") as process,
+            patch("psutil.wait_procs", return_value=([], [])),
+        ):
+            process.return_value.children.return_value = [owned, existing, unrelated, llama]
+            _stop_surya_children("llama-server", {existing})
+        owned.terminate.assert_called_once()
+        llama.terminate.assert_called_once()
+        existing.terminate.assert_not_called()
+        unrelated.terminate.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

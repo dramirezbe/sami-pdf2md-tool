@@ -14,7 +14,7 @@ Powered by [Marker](https://github.com/VikParuchuri/marker).
 curl -fsSL https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.sh | bash
 ```
 
-This installs `uv` (if missing) and `sami` globally. On first run, `llama-server` and OCR models are downloaded automatically into `~/.sami/`.
+This installs `uv` (if missing) and `sami` globally. On first use, SAMI downloads `llama-server` and OCR models into `~/.sami/`. When the NVIDIA driver and available VRAM support it, SAMI downloads and verifies the CUDA build of `llama-server` and its matching runtime libraries.
 
 ### Other install methods
 
@@ -69,9 +69,11 @@ sami paper.pdf -q                  # quiet mode
 
 | Mode | Flag | Layout Engine | Best for |
 |------|------|--------------|----------|
-| auto | *(default)* | Marker picks by device | General use |
-| fast | `--mode fast` | RF-DETR | Speed over quality |
-| balanced | `--mode balanced` | VLM | Quality over speed |
+| fast | `--mode fast` | PyMuPDF and pdfplumber on CPU | Speed |
+| balanced | `--mode balanced` *(default)* | RF-DETR on CUDA when available, with llama.cpp for OCR as needed | General use |
+| quality | `--mode quality` | llama.cpp VLM with GPU offload according to free VRAM | Layout quality |
+
+At model load, llama.cpp fits VLM layers to the free VRAM and the memory required for the current model and context. When CUDA or automatic fitting is unavailable, SAMI uses the CPU. Set `LLAMA_CPP_NGL` to an explicit layer count, or set it to `0` to run the VLM on CPU.
 
 ## Exit codes
 
@@ -87,7 +89,8 @@ sami creates `~/.sami/` on first run:
 
 ```
 ~/.sami/
-  bin/llama-server            # auto-downloaded llama.cpp server
+  bin/cpu/                    # CPU llama.cpp runtime
+  bin/cuda/                   # CUDA llama.cpp runtime, when available
   config/defaults.yaml        # default CLI flags
   cache/huggingface/          # downloaded models (surya-ocr, etc.)
   cache/torch/                # torch hub cache

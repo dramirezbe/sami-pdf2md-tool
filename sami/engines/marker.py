@@ -1,24 +1,19 @@
-"""Marker adapter retaining SAMI's existing conversion pipeline.
-
-Backend policy (doc 06):
-- All heavy inference runs on local llama.cpp (GGUF).  Docker and vllm are
-  NEVER used.  _configure_vlm_backend() sets the required Surya/llama.cpp
-  environment before create_model_dict() so Marker/Surya never reach for them.
-- GPU offload is controlled by LLAMA_CPP_NGL, computed from free VRAM:
-    >= 8 GB free  → full offload  (-ngl -1 / all layers)
-    4–8 GB free   → partial       (-ngl 20)
-    < 4 GB / none → CPU           (-ngl 0)
-- The public mode (fast / balanced / quality) is NEVER changed by hardware.
-  Hardware only scales the VLM offload for the quality path.
-"""
+"""Marker adapter with Torch layout and local llama.cpp inference."""
 from __future__ import annotations
 
 import os
 import sys
 import time
+from contextlib import ExitStack
 from pathlib import Path
 
 from sami.contracts import ConversionRequest, EngineResult
+
+_VLM_SETTINGS = (
+    "LLAMA_CPP_BINARY", "LLAMA_CPP_NGL", "LLAMA_CPP_NO_MMPROJ_OFFLOAD",
+    "LLAMA_CPP_EXTRA_ARGS", "SURYA_INFERENCE_PARALLEL",
+    "SURYA_GGUF_LOCAL_MODEL_PATH", "SURYA_GGUF_LOCAL_MMPROJ_PATH",
+)
 
 
 def _count_blocks_by_type(document) -> dict[str, int]:
@@ -219,49 +214,73 @@ def _locate_gguf_paths(app_home: Path | None) -> tuple[str | None, str | None]:
     return None, None
 
 
-def _configure_vlm_backend(ngl: int, ngl_tier: str, logger, app_home: Path | None) -> None:
-    """Set env vars so Marker/Surya uses local llama.cpp, never Docker/vllm.
+def _configure_vlm_backend(logger, app_home: Path | None) -> bool:
+    """Choose the llama.cpp runtime and offload settings for this run."""
+    backend = os.environ.setdefault("SURYA_INFERENCE_BACKEND", "llamacpp")
+    if backend != "llamacpp" or os.environ.get("SURYA_INFERENCE_URL"):
+        logger(f"VLM backend: {backend}")
+        return False
 
-    Must be called BEFORE create_model_dict().  Idempotent: safe to call
-    multiple times; existing explicit overrides are preserved.
+    requested = os.environ.get("LLAMA_CPP_NGL")
+    layers = int(requested) if requested is not None else None
+    if layers is None and os.environ.get("TORCH_DEVICE", "").lower() == "cpu":
+        layers = 0
 
-    Args:
-        ngl:      layer count for llama.cpp (-1 = all layers, 0 = CPU)
-        ngl_tier: "full" | "partial" | "cpu" — used for log messages
-        logger:   callable for progress messages
-        app_home: SAMI home dir for locating GGUF files, or None
-    """
-    # 1. Force llamacpp backend — Surya will not attempt vllm or Docker
-    os.environ.setdefault("SURYA_INFERENCE_BACKEND", "llamacpp")
+    # None delegates layer placement to llama.cpp. The live VRAM measurement
+    # then happens at model load, after any RF-DETR CUDA allocations.
+    from sami.llama_runtime import ensure_server, supports_vram_fit
 
-    # 2. Set the -ngl value (overwrite because hardware may have changed)
-    ngl_str = str(ngl if ngl >= 0 else 999)  # 999 = "all layers" for llama-server
-    os.environ["LLAMA_CPP_NGL"] = ngl_str
+    home = app_home or Path(os.environ.get("SAMI_HOME", Path.home() / ".sami"))
+    binary, use_cuda = ensure_server(home, want_cuda=layers != 0, logger=logger)
+    if use_cuda and layers is None and not (binary and supports_vram_fit(binary)):
+        logger("llama-server lacks automatic VRAM fitting. VLM will use CPU.")
+        use_cuda = False
 
-    # 3. Point Surya at local GGUF files if available
+    ngl = (999 if layers < 0 else layers) if use_cuda and layers is not None else 0
+    os.environ["LLAMA_CPP_NGL"] = str(ngl)
+    extra = os.environ.get("LLAMA_CPP_EXTRA_ARGS", "")
+    if use_cuda and layers is None:
+        # Surya's setting only accepts integers. The last flag takes precedence.
+        os.environ["LLAMA_CPP_EXTRA_ARGS"] = f"--n-gpu-layers auto --fit on {extra}".strip()
+    elif not use_cuda:
+        os.environ.setdefault("LLAMA_CPP_NO_MMPROJ_OFFLOAD", "true")
+        os.environ["LLAMA_CPP_EXTRA_ARGS"] = f"--device none {extra}".strip()
+    elif 0 < ngl <= 8:
+        # Keep the vision encoder and KV cache on the host for 4 GiB GPUs.
+        os.environ.setdefault("SURYA_INFERENCE_PARALLEL", "1")
+        os.environ.setdefault("LLAMA_CPP_NO_MMPROJ_OFFLOAD", "true")
+        os.environ["LLAMA_CPP_EXTRA_ARGS"] = f"--no-kv-offload {extra}".strip()
+
     gguf, mmproj = _locate_gguf_paths(app_home)
-    if gguf:
+    if gguf and mmproj:
         os.environ.setdefault("SURYA_GGUF_LOCAL_MODEL_PATH", gguf)
-    if mmproj:
         os.environ.setdefault("SURYA_GGUF_LOCAL_MMPROJ_PATH", mmproj)
 
-    # 4. Log the offload decision
-    if ngl_tier == "full":
-        logger("VLM backend: llama.cpp, full GPU offload")
-    elif ngl_tier == "partial":
-        logger(f"VLM backend: llama.cpp, partial GPU offload (-ngl {ngl}) — VRAM 4–8 GB")
+    if use_cuda and layers is None:
+        logger("VLM backend: local llama.cpp, CUDA (automatic layer fitting)")
     else:
-        logger("VLM backend: llama.cpp, CPU inference (-ngl 0) — no usable GPU")
-
-    if not gguf:
-        logger("  WARNING: surya-2.gguf not found in cache; Surya will attempt download")
+        logger(f"VLM backend: local llama.cpp, {'CUDA' if use_cuda else 'CPU'} (-ngl {ngl})")
+    return use_cuda
 
 
-def build_converter(mode: str | None, *, cpu_config, logger, stage_logger, stage_done_logger, app_home: Path | None = None):
-    """Construct a Marker PDF->Markdown converter with verbose logging."""
+def build_converter(
+    mode: str | None, *, cpu_config, logger, stage_logger, stage_done_logger,
+    app_home: Path | None = None, runtime: ExitStack | None = None,
+):
+    """Construct a Marker PDF-to-Markdown converter."""
+    from sami.hardware import describe_gpu, gpu_info
+
+    if runtime is not None:
+        for key in (*_VLM_SETTINGS, "SURYA_INFERENCE_BACKEND", "LD_LIBRARY_PATH"):
+            if key in os.environ:
+                runtime.callback(os.environ.__setitem__, key, os.environ[key])
+            else:
+                runtime.callback(os.environ.pop, key, None)
+
     try:
         from marker.models import create_model_dict
         from marker.config.parser import ConfigParser
+        from surya.settings import settings
     except ImportError as exc:
         print(
             f"Marker is not available: {exc}\n"
@@ -270,18 +289,27 @@ def build_converter(mode: str | None, *, cpu_config, logger, stage_logger, stage
         )
         sys.exit(2)
 
+    logger(f"GPU: {describe_gpu(gpu_info())}")
+    use_cuda = _configure_vlm_backend(logger, app_home)
+    # Surya reads the environment at import time. Update the settings instance
+    # that its backend uses before creating any predictors.
+    for key in _VLM_SETTINGS:
+        if key in os.environ:
+            value = os.environ[key]
+            if key in ("LLAMA_CPP_NGL", "SURYA_INFERENCE_PARALLEL"):
+                value = int(value)
+            elif key == "LLAMA_CPP_NO_MMPROJ_OFFLOAD":
+                value = value.lower() in ("1", "true", "yes", "on")
+            if runtime is not None:
+                runtime.callback(setattr, settings, key, getattr(settings, key))
+            setattr(settings, key, value)
+
+    if runtime is not None:
+        from sami.processes import managed_surya_servers
+        runtime.enter_context(managed_surya_servers())
+
     import torch
     torch.set_num_threads(cpu_config["torch_threads"])
-
-    # For the quality VLM path (Marker internal mode "balanced"), configure
-    # llama.cpp backend before loading models.  balanced (RF-DETR) uses Torch
-    # directly — no inference server, no VLM backend config needed.
-    if mode == "balanced":
-        from sami.hardware import gpu_info
-        info = gpu_info()
-        vram_free_str = f"{info['vram_free_gb']:.1f} GB" if info["vram_free_gb"] is not None else "unknown"
-        logger(f"GPU: {info['physical_gpu'] or 'none'} — VRAM free {vram_free_str}")
-        _configure_vlm_backend(info["ngl"], info["ngl_tier"], logger, app_home)
 
     cli: dict = {
         "output_format": "markdown",
@@ -295,17 +323,19 @@ def build_converter(mode: str | None, *, cpu_config, logger, stage_logger, stage
         f"using {cpu_config['target_threads']} threads (~90%)")
     logger("Loading Marker models...")
     t0 = time.monotonic()
-    model_dict = create_model_dict()
+    model_dict = create_model_dict(inference_backend=os.environ["SURYA_INFERENCE_BACKEND"])
     logger(f"Models loaded in {time.monotonic() - t0:.1f}s")
     logger(f"Mode: {mode or 'auto (RF-DETR)'}")
 
     VerboseConverter = _make_verbose_converter_cls(stage_logger, stage_done_logger)
-    return VerboseConverter(
+    converter = VerboseConverter(
         config=config_parser.generate_config_dict(),
         artifact_dict=model_dict,
         processor_list=config_parser.get_processors(),
         renderer=config_parser.get_renderer(),
     )
+    converter.sami_vlm_cuda = use_cuda
+    return converter
 
 
 # ---------------------------------------------------------------------------
@@ -337,33 +367,35 @@ def convert(
     app_home: Path | None = None,
 ) -> EngineResult:
     """Run SAMI's original Marker pipeline into the request staging directory."""
-    from marker.output import text_from_rendered
-
     if marker_mode not in ("fast", "balanced"):
         raise ValueError(f"unsupported internal Marker mode: {marker_mode}")
-    if converter is None:
-        converter = build_converter(
-            marker_mode,
-            cpu_config=cpu_config,
-            logger=logger,
-            stage_logger=stage_logger,
-            stage_done_logger=stage_done_logger,
-            app_home=app_home,
+    with ExitStack() as runtime:
+        if converter is None:
+            converter = build_converter(
+                marker_mode,
+                cpu_config=cpu_config,
+                logger=logger,
+                stage_logger=stage_logger,
+                stage_done_logger=stage_done_logger,
+                app_home=app_home,
+                runtime=runtime,
+            )
+        from marker.output import text_from_rendered
+
+        rendered = converter(str(request.input_path), pdf_name=request.input_path.name)
+        markdown, _extension, images = text_from_rendered(rendered)
+        request.staging_dir.mkdir(parents=True, exist_ok=True)
+        write_figures(images, request.staging_dir)
+        resources = tuple(
+            sorted(path.relative_to(request.staging_dir) for path in request.staging_dir.rglob("*") if path.is_file())
         )
-    rendered = converter(str(request.input_path), pdf_name=request.input_path.name)
-    markdown, _extension, images = text_from_rendered(rendered)
-    request.staging_dir.mkdir(parents=True, exist_ok=True)
-    write_figures(images, request.staging_dir)
-    resources = tuple(
-        sorted(path.relative_to(request.staging_dir) for path in request.staging_dir.rglob("*") if path.is_file())
-    )
-    return EngineResult(
-        markdown=markdown,
-        resources=resources,
-        processed_pages=converter.page_count or 0,
-        metrics={
-            "engine": "marker",
-            "marker_mode": marker_mode,
-            "images": len(images),
-        },
-    )
+        return EngineResult(
+            markdown=markdown,
+            resources=resources,
+            processed_pages=converter.page_count or 0,
+            metrics={
+                "engine": "marker",
+                "marker_mode": marker_mode,
+                "images": len(images),
+            },
+        )
