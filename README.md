@@ -16,6 +16,22 @@ curl -fsSL https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/in
 
 This installs `uv` (if missing) and `sami` globally. On first use, SAMI downloads `llama-server` and OCR models into `~/.sami/`. When the NVIDIA driver and available VRAM support it, SAMI downloads and verifies the CUDA build of `llama-server` and its matching runtime libraries.
 
+### Windows PowerShell
+
+Run the installer from the cloned repository:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+Open a new PowerShell window so it picks up the updated PATH:
+
+```powershell
+sami paper.pdf --mode balanced
+```
+
+On x64 with an NVIDIA driver that supports CUDA 13.2 or later, the installer downloads the PyTorch CUDA wheel directly from PyTorch and verifies its SHA-256. To install a built wheel, pass its path with `-Source`.
+
 ### Other install methods
 
 <details>
