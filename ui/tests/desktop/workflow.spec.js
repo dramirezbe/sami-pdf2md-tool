@@ -25,7 +25,7 @@ test("opens the desktop app, stages a mixed batch, previews and exports the resu
   await Promise.all(dropped.map(path => copyFile(source, path)));
   await writeFile(join(home, "installation.json"), JSON.stringify({
     schema_version: 1, installation_id: "demo-ui-test", executable: process.execPath,
-    protocol_version: 1, cli_version: "0.2.4", sami_home: home,
+    protocol_version: 1, cli_version: "0.3.1", sami_home: home,
   }));
   const env = { ...process.env, SAMI_HOME: selectedCli || home };
   if (!selectedCli) {

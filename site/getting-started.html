@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Getting Started — SAMI</title>
+<meta name="description" content="Install and use SAMI to convert PDFs to Markdown. Full CLI reference with all flags and examples.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📄</text></svg>">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+:root {
+  --bg: #fafaf9;
+  --bg-elevated: #ffffff;
+  --fg: #1c1917;
+  --fg-muted: #57534e;
+  --accent: #d97706;
+  --accent-hover: #b45309;
+  --accent-soft: #fef3c7;
+  --border: #e7e5e4;
+  --code-bg: #f5f5f4;
+  --radius: 10px;
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-mono: 'SF Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0c0a09;
+    --bg-elevated: #1c1917;
+    --fg: #fafaf9;
+    --fg-muted: #a8a29e;
+    --accent: #f59e0b;
+    --accent-hover: #fbbf24;
+    --accent-soft: #451a03;
+    --border: #292524;
+    --code-bg: #1c1917;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0c0a09;
+  --bg-elevated: #1c1917;
+  --fg: #fafaf9;
+  --fg-muted: #a8a29e;
+  --accent: #f59e0b;
+  --accent-hover: #fbbf24;
+  --accent-soft: #451a03;
+  --border: #292524;
+  --code-bg: #1c1917;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto;
+  height: env(safe-area-inset-top, 0px);
+  z-index: 10;
+  background: var(--bg);
+}
+
+/* --- Layout --- */
+.page {
+  display: flex;
+  min-height: 100vh;
+}
+.sidebar {
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  height: calc(100vh - env(safe-area-inset-top, 0px));
+  width: 240px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  padding: 20px 16px;
+  font-size: 0.8125rem;
+}
+.sidebar a {
+  display: block;
+  padding: 4px 10px;
+  color: var(--fg-muted);
+  text-decoration: none;
+  border-radius: 6px;
+  transition: color 0.1s, background 0.1s;
+}
+.sidebar a:hover { color: var(--fg); background: var(--code-bg); }
+.sidebar .brand {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--fg);
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sidebar .brand svg { width: 22px; height: 22px; }
+.sidebar h3 {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-muted);
+  margin: 20px 0 6px 10px;
+}
+.main {
+  flex: 1;
+  min-width: 0;
+  padding-left: max(32px, env(safe-area-inset-left, 0px));
+  padding-right: max(32px, env(safe-area-inset-right, 0px));
+  padding-block: 40px 80px;
+  max-width: 760px;
+}
+
+/* --- Typography --- */
+h1 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 2rem;
+  line-height: 1.2;
+  margin-bottom: 8px;
+}
+h1 + .lead {
+  color: var(--fg-muted);
+  font-size: 1.0625rem;
+  margin-bottom: 40px;
+}
+h2 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.375rem;
+  margin-top: 56px;
+  margin-bottom: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.0625rem;
+  margin-top: 32px;
+  margin-bottom: 10px;
+}
+p { margin-bottom: 14px; }
+p + ul, p + ol { margin-top: -6px; }
+ul, ol {
+  padding-left: 24px;
+  margin-bottom: 14px;
+}
+li { margin-bottom: 4px; }
+
+/* --- Code --- */
+code {
+  font-family: var(--font-mono);
+  font-size: 0.8125em;
+  background: var(--code-bg);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+pre {
+  position: relative;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 52px 16px 20px;
+  margin-bottom: 20px;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.7;
+}
+pre code {
+  background: none;
+  padding: 0;
+  font-size: inherit;
+}
+.copy-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, border-color 0.15s;
+}
+.copy-btn:hover { color: var(--fg); border-color: var(--fg-muted); }
+.copy-btn svg { width: 14px; height: 14px; }
+.copy-btn.copied { color: #16a34a; border-color: #16a34a; }
+
+/* --- Tables --- */
+.table-wrap { overflow-x: auto; margin-bottom: 20px; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+th, td {
+  padding: 10px 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+th {
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fg-muted);
+}
+
+/* --- Callout --- */
+.callout {
+  background: var(--accent-soft);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: 14px 18px;
+  margin-bottom: 20px;
+  font-size: 0.875rem;
+}
+
+/* --- Mobile --- */
+.menu-toggle { display: none; }
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    left: -260px;
+    top: 0;
+    z-index: 20;
+    background: var(--bg);
+    transition: left 0.2s;
+    height: 100vh;
+    width: 260px;
+  }
+  .sidebar.open { left: 0; }
+  .menu-toggle {
+    display: flex;
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 20;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+  .menu-toggle svg { width: 20px; height: 20px; }
+  .main {
+    padding-left: max(20px, env(safe-area-inset-left, 0px));
+    padding-right: max(20px, env(safe-area-inset-right, 0px));
+  }
+  .backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.3);
+    z-index: 15;
+    display: none;
+  }
+  .backdrop.open { display: block; }
+}
+</style>
+</head>
+<body>
+<div class="backdrop" id="backdrop"></div>
+<button class="menu-toggle" id="menu-toggle" aria-label="Toggle menu">
+  <svg viewBox="0 0 20 20" fill="currentColor"><path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>
+</button>
+
+<div class="page">
+<aside class="sidebar" id="sidebar">
+  <a href="index.html" class="brand">
+    <svg viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="7" fill="var(--accent)"/><text x="16" y="22" text-anchor="middle" font-family="'Space Grotesk',system-ui" font-weight="700" font-size="16" fill="#fff">S</text></svg>
+    SAMI
+  </a>
+  <a href="#install">Install</a>
+  <a href="#quick-start">Quick start</a>
+  <h3>CLI Reference</h3>
+  <a href="#convert">sami (convert)</a>
+  <a href="#flags">All flags</a>
+  <a href="#modes">Conversion modes</a>
+  <a href="#health">sami health</a>
+  <a href="#doctor">sami doctor</a>
+  <a href="#setup">sami setup</a>
+  <a href="#upgrade">sami upgrade</a>
+  <h3>Topics</h3>
+  <a href="#output-structure">Output structure</a>
+  <a href="#gpu">GPU support</a>
+  <a href="#env-vars">Environment variables</a>
+  <a href="#exit-codes">Exit codes</a>
+  <a href="#examples">Examples</a>
+</aside>
+
+<main class="main">
+<h1>Getting Started</h1>
+<p class="lead">Install SAMI and convert your first PDF in under a minute.</p>
+
+<!-- ============================================ -->
+<h2 id="install">Install</h2>
+
+<h3>Linux / macOS</h3>
+<pre><code>curl -fsSL https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.sh | bash</code></pre>
+
+<h3>Windows (PowerShell)</h3>
+<pre><code>irm https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.ps1 | iex</code></pre>
+
+<h3>From source (developers)</h3>
+<pre><code>git clone https://github.com/dramirezbe/sami-pdf2md-tool.git
+cd sami-pdf2md-tool
+uv tool install --python 3.12 -e .</code></pre>
+
+<h3>Update to latest version</h3>
+<pre><code>sami upgrade</code></pre>
+<p>Or re-run the install command &mdash; it detects an existing installation and updates it.</p>
+
+<div class="callout">
+  <strong>Requirements:</strong> Python 3.11&ndash;3.13. The installer handles Python via <code>uv</code> automatically. No Docker or API keys needed.
+</div>
+
+<!-- ============================================ -->
+<h2 id="quick-start">Quick start</h2>
+
+<p>Convert a single PDF:</p>
+<pre><code>sami paper.pdf</code></pre>
+<p>This creates a <code>paper/</code> folder next to the PDF containing <code>paper.md</code> and any extracted figures.</p>
+
+<p>Convert multiple PDFs:</p>
+<pre><code>sami paper1.pdf paper2.pdf report.pdf</code></pre>
+
+<p>Convert all PDFs in a folder:</p>
+<pre><code>sami ~/Documents/papers/ --recursive</code></pre>
+
+<!-- ============================================ -->
+<h2 id="convert">sami [convert] &lt;INPUT...&gt;</h2>
+
+<p>The main command. <code>convert</code> is implicit &mdash; <code>sami paper.pdf</code> and <code>sami convert paper.pdf</code> are identical.</p>
+
+<p>Accepts one or more PDF files or directories. Directories are scanned for <code>.pdf</code> files (add <code>--recursive</code> for subfolders).</p>
+
+<!-- ============================================ -->
+<h2 id="flags">All flags</h2>
+
+<div class="table-wrap">
+<table>
+<thead>
+<tr><th>Flag</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>-o, --output DIR</code></td><td>beside each PDF</td><td>Output directory. Each PDF gets a subfolder inside it.</td></tr>
+<tr><td><code>--mode MODE</code></td><td><code>balanced</code></td><td>Conversion mode: <code>fast</code>, <code>balanced</code>, or <code>quality</code>.</td></tr>
+<tr><td><code>--device DEVICE</code></td><td><code>auto</code></td><td>Compute device: <code>auto</code>, <code>cpu</code>, <code>cuda</code>, or <code>rocm</code>.</td></tr>
+<tr><td><code>--recursive</code></td><td>off</td><td>Include PDFs in subfolders when an input is a directory.</td></tr>
+<tr><td><code>--flat</code></td><td>off</td><td>Write output directly to the output directory, no subfolder per PDF.</td></tr>
+<tr><td><code>--no-strip-refs</code></td><td>off</td><td>Compatibility flag; references are always preserved.</td></tr>
+<tr><td><code>-q, --quiet</code></td><td>off</td><td>Minimal output. Only errors are printed.</td></tr>
+<tr><td><code>--json</code></td><td>off</td><td>Emit protocol&nbsp;1 JSON Lines on stdout (for the desktop app).</td></tr>
+<tr><td><code>--control-stdin</code></td><td>off</td><td>Accept protocol&nbsp;1 cancellation commands on stdin.</td></tr>
+<tr><td><code>--version</code></td><td>&mdash;</td><td>Print version and exit.</td></tr>
+</tbody>
+</table>
+</div>
+
+<!-- ============================================ -->
+<h2 id="modes">Conversion modes</h2>
+
+<div class="table-wrap">
+<table>
+<thead>
+<tr><th>Mode</th><th>Layout engine</th><th>Speed</th><th>Quality</th><th>GPU needed</th></tr>
+</thead>
+<tbody>
+<tr><td><code>fast</code></td><td>RF-DETR</td><td>Fast</td><td>Good</td><td>No</td></tr>
+<tr><td><code>balanced</code></td><td>Marker + Torch</td><td>Moderate</td><td>Better</td><td>Optional (CUDA)</td></tr>
+<tr><td><code>quality</code></td><td>VLM via llama.cpp</td><td>Slower</td><td>Best</td><td>Optional (CUDA)</td></tr>
+</tbody>
+</table>
+</div>
+
+<p><strong>fast</strong> uses RF-DETR for layout detection. CPU only, no GPU needed. Good for simple documents without complex tables.</p>
+
+<p><strong>balanced</strong> (default) uses the Marker engine with Torch-based layout. Uses CUDA if available, falls back to CPU automatically.</p>
+
+<p><strong>quality</strong> uses VLM layout detection through a local llama.cpp server. GPU layers are scaled to available VRAM:</p>
+<ul>
+  <li><strong>&ge; 8 GB VRAM:</strong> full layer offload, fast</li>
+  <li><strong>4&ndash;8 GB:</strong> partial offload, slower</li>
+  <li><strong>&lt; 4 GB or no GPU:</strong> CPU inference, works on any machine</li>
+</ul>
+
+<div class="callout">
+  Hardware never changes the requested mode. If the GPU is insufficient, SAMI warns and continues in the same mode on CPU.
+</div>
+
+<!-- ============================================ -->
+<h2 id="health">sami health</h2>
+
+<p>Check the installation status without changing anything.</p>
+<pre><code>sami health</code></pre>
+
+<p>Reports the CLI version, protocol version, and readiness of each conversion mode. Use <code>--json</code> for machine-readable output.</p>
+<pre><code>sami health --json</code></pre>
+
+<!-- ============================================ -->
+<h2 id="doctor">sami doctor</h2>
+
+<p>Extended diagnostics including installation record, compatibility profile, model paths, and device info.</p>
+<pre><code>sami doctor</code></pre>
+<pre><code>sami doctor --json</code></pre>
+
+<!-- ============================================ -->
+<h2 id="setup">sami setup</h2>
+
+<p>Download models and validate that all conversion modes are ready. Runs automatically on first install; use it after to repair or verify.</p>
+<pre><code>sami setup</code></pre>
+
+<div class="table-wrap">
+<table>
+<thead><tr><th>Flag</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><code>--json</code></td><td>Machine-readable JSON output.</td></tr>
+<tr><td><code>--force</code></td><td>Re-validate even if the installation is already ready.</td></tr>
+<tr><td><code>--register-only</code></td><td>Record the launcher path without downloading models.</td></tr>
+<tr><td><code>--executable PATH</code></td><td>Register a specific launcher path.</td></tr>
+</tbody>
+</table>
+</div>
+
+<!-- ============================================ -->
+<h2 id="upgrade">sami upgrade</h2>
+
+<p>Update SAMI in its current environment, reusing compatible dependencies.</p>
+<pre><code>sami upgrade</code></pre>
+<pre><code>sami upgrade --ref v0.3.1</code></pre>
+
+<div class="table-wrap">
+<table>
+<thead><tr><th>Flag</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><code>--ref REF</code></td><td>Git branch, tag, or commit to upgrade to. Defaults to the installed ref or <code>main</code>.</td></tr>
+</tbody>
+</table>
+</div>
+
+<!-- ============================================ -->
+<h2 id="output-structure">Output structure</h2>
+
+<p>By default, each PDF produces a subfolder with the same name:</p>
+<pre><code>sami report.pdf
+# report/
+#   report.md        &larr; Markdown with LaTeX equations and tables
+#   figure_1.png     &larr; extracted figures
+#   figure_2.png</code></pre>
+
+<p>With <code>--output</code>:</p>
+<pre><code>sami report.pdf -o converted/
+# converted/report/
+#   report.md
+#   figure_1.png</code></pre>
+
+<p>With <code>--flat</code> (no subfolder):</p>
+<pre><code>sami report.pdf --flat -o out/
+# out/
+#   report.md
+#   report_figure_1.png</code></pre>
+
+<!-- ============================================ -->
+<h2 id="gpu">GPU support</h2>
+
+<p>SAMI detects CUDA GPUs automatically via <code>--device auto</code> (the default). Override with:</p>
+<pre><code>sami paper.pdf --device cpu     # force CPU
+sami paper.pdf --device cuda    # force CUDA
+sami paper.pdf --device rocm    # force ROCm (AMD)</code></pre>
+
+<p>All three modes are fully local and keyless. No Docker, no API keys.</p>
+
+<ul>
+  <li><strong>fast:</strong> CPU only, no GPU needed.</li>
+  <li><strong>balanced:</strong> Torch-based &mdash; uses CUDA if available.</li>
+  <li><strong>quality:</strong> llama.cpp &mdash; GPU layers scale to available VRAM. Falls back to CPU with <code>-ngl 0</code>.</li>
+</ul>
+
+<!-- ============================================ -->
+<h2 id="env-vars">Environment variables</h2>
+
+<div class="table-wrap">
+<table>
+<thead><tr><th>Variable</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><code>SAMI_HOME</code></td><td>Override the app home directory (default: <code>~/.sami/</code>).</td></tr>
+<tr><td><code>LLAMA_CPP_BINARY</code></td><td>Path to a custom <code>llama-server</code> binary.</td></tr>
+<tr><td><code>HF_HOME</code></td><td>Hugging Face cache (default: <code>~/.sami/cache/huggingface/</code>).</td></tr>
+<tr><td><code>TORCH_HOME</code></td><td>Torch hub cache (default: <code>~/.sami/cache/torch/</code>).</td></tr>
+<tr><td><code>OMP_NUM_THREADS</code></td><td>Override OpenMP thread count (auto-tuned to ~90% of cores).</td></tr>
+</tbody>
+</table>
+</div>
+
+<!-- ============================================ -->
+<h2 id="exit-codes">Exit codes</h2>
+
+<div class="table-wrap">
+<table>
+<thead><tr><th>Code</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>0</code></td><td>All PDFs converted successfully.</td></tr>
+<tr><td><code>1</code></td><td>At least one PDF failed or was partial.</td></tr>
+<tr><td><code>2</code></td><td>Usage error (invalid arguments).</td></tr>
+<tr><td><code>130</code></td><td>Cancelled (Ctrl+C or protocol cancellation).</td></tr>
+</tbody>
+</table>
+</div>
+
+<!-- ============================================ -->
+<h2 id="examples">Examples</h2>
+
+<h3>Basic conversion</h3>
+<pre><code>sami paper.pdf</code></pre>
+
+<h3>Fast mode for quick results</h3>
+<pre><code>sami paper.pdf --mode fast</code></pre>
+
+<h3>Quality mode for complex documents</h3>
+<pre><code>sami paper.pdf --mode quality</code></pre>
+
+<h3>Custom output directory</h3>
+<pre><code>sami paper.pdf -o ~/converted/</code></pre>
+
+<h3>Batch convert an entire folder</h3>
+<pre><code>sami ~/Documents/papers/ --recursive -o ~/markdown/</code></pre>
+
+<h3>Flat output (no subfolders)</h3>
+<pre><code>sami *.pdf --flat -o out/</code></pre>
+
+<h3>Quiet mode in scripts</h3>
+<pre><code>sami paper.pdf -q && echo "Done"</code></pre>
+
+<h3>Force CPU on a machine with GPU</h3>
+<pre><code>sami paper.pdf --device cpu</code></pre>
+
+<h3>JSON output for automation</h3>
+<pre><code>sami paper.pdf --json 2>/dev/null | jq '.event'</code></pre>
+
+<h3>Check installation health</h3>
+<pre><code>sami health --json | jq '.modes'</code></pre>
+
+<h3>Upgrade to a specific version</h3>
+<pre><code>sami upgrade --ref v0.3.1</code></pre>
+
+</main>
+</div>
+
+<script>
+(function() {
+  // Mobile sidebar toggle
+  var sidebar = document.getElementById("sidebar");
+  var toggle = document.getElementById("menu-toggle");
+  var backdrop = document.getElementById("backdrop");
+  function closeSidebar() {
+    sidebar.classList.remove("open");
+    backdrop.classList.remove("open");
+  }
+  toggle.addEventListener("click", function() {
+    sidebar.classList.toggle("open");
+    backdrop.classList.toggle("open");
+  });
+  backdrop.addEventListener("click", closeSidebar);
+  sidebar.querySelectorAll("a").forEach(function(a) {
+    a.addEventListener("click", closeSidebar);
+  });
+
+  // Copy buttons on all pre blocks
+  var copySvg = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M5 11H3.5A1.5 1.5 0 012 9.5v-7A1.5 1.5 0 013.5 1h7A1.5 1.5 0 0112 2.5V5"/></svg>';
+  var checkSvg = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8.5l3 3 7-7"/></svg>';
+  document.querySelectorAll("pre").forEach(function(pre) {
+    var btn = document.createElement("button");
+    btn.className = "copy-btn";
+    btn.setAttribute("aria-label", "Copy");
+    btn.innerHTML = copySvg;
+    pre.style.position = "relative";
+    pre.appendChild(btn);
+    btn.addEventListener("click", function() {
+      var text = pre.querySelector("code") ? pre.querySelector("code").textContent : pre.textContent;
+      try {
+        navigator.clipboard.writeText(text.trim()).then(function() {
+          btn.innerHTML = checkSvg;
+          btn.classList.add("copied");
+          setTimeout(function() {
+            btn.innerHTML = copySvg;
+            btn.classList.remove("copied");
+          }, 2000);
+        });
+      } catch(e) {}
+    });
+  });
+})();
+</script>
+</body>
+</html>

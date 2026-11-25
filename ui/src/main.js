@@ -7,7 +7,7 @@ import { Documents } from "./documents.js";
 
 const APPLICATION = "sami-app://app";
 const INDEX = `${APPLICATION}/index.html`;
-const CLI_RELEASE = "https://github.com/dramirezbe/sami-pdf2md-tool/releases/tag/v0.2.4";
+const CLI_RELEASE = "https://github.com/dramirezbe/sami-pdf2md-tool/releases/tag/v0.3.1";
 const source = dirname(fileURLToPath(import.meta.url));
 const renderer = join(source, "..", "dist");
 const icon = join(renderer, "assets", "icons", "sami-icon-128.png");

@@ -1,6 +1,6 @@
 {
   "schema_version": "1",
-  "sami_version": "0.2.4",
+  "sami_version": "0.3.1",
   "python": {
     "required": ">=3.11,<3.14",
     "pinned": "3.12.13",
@@ -45,24 +45,26 @@
                   "note": "inference_server=true means llama-server is used. gpu_required=false: works on CPU with -ngl 0." }
   },
   "cli": {
-    "version": "0.2.4",
+    "version": "0.3.1",
     "protocol_version": 1,
     "python": "3.12",
-    "wheel": "sami_pdf2md_tool-0.2.4-py3-none-any.whl",
-    "url": "https://github.com/dramirezbe/sami-pdf2md-tool/releases/download/v0.2.4/sami_pdf2md_tool-0.2.4-py3-none-any.whl",
-    "sha256": "fe5d91d7aa2d9c21d191e8a7822851dd8658cae65fdbbda91ec25e7f1e123fe3"
+    "wheel": "sami_pdf2md_tool-0.3.1-py3-none-any.whl",
+    "url": "https://github.com/dramirezbe/sami-pdf2md-tool/releases/download/v0.3.1/sami_pdf2md_tool-0.3.1-py3-none-any.whl",
+    "sha256": "0051ad72fdaa06a1fd97335b7e424caa785866fc73212153153b89e41e26a27a"
   },
   "ui": {
-    "version": "0.3.0",
+    "version": "0.3.1",
     "protocol_version": 1,
-    "release_tag": "v0.3.0",
+    "release_tag": "v0.3.1",
     "windows_x64": {
-      "asset": "SAMI-0.3.0-win-x64-setup.exe",
-      "url": "https://github.com/dramirezbe/sami-pdf2md-tool/releases/download/v0.3.0/SAMI-0.3.0-win-x64-setup.exe"
+      "asset": "SAMI-0.3.1-win-x64-setup.exe",
+      "url": "https://github.com/dramirezbe/sami-pdf2md-tool/releases/download/v0.3.1/SAMI-0.3.1-win-x64-setup.exe"
     },
     "linux_x64": {
-      "asset": "SAMI-0.3.0-linux-x64.AppImage",
-      "url": "https://github.com/dramirezbe/sami-pdf2md-tool/releases/download/v0.3.0/SAMI-0.3.0-linux-x64.AppImage"
+      "asset": "SAMI-0.3.1-linux-x64.AppImage",
+      "url": "https://github.com/dramirezbe/sami-pdf2md-tool/releases/download/v0.3.1/SAMI-0.3.1-linux-x64.AppImage",
+      "deb_asset": "SAMI-0.3.1-linux-x64.deb",
+      "deb_url": "https://github.com/dramirezbe/sami-pdf2md-tool/releases/download/v0.3.1/SAMI-0.3.1-linux-x64.deb"
     }
   }
 }

@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-CLI_VERSION=0.2.4
-CLI_WHEEL=sami_pdf2md_tool-0.2.4-py3-none-any.whl
-CLI_SHA256=fe5d91d7aa2d9c21d191e8a7822851dd8658cae65fdbbda91ec25e7f1e123fe3
-UI_VERSION=0.3.0
+CLI_VERSION=0.3.1
+CLI_WHEEL=sami_pdf2md_tool-0.3.1-py3-none-any.whl
+CLI_SHA256=0051ad72fdaa06a1fd97335b7e424caa785866fc73212153153b89e41e26a27a
+UI_VERSION=0.3.1
 REPOSITORY=dramirezbe/sami-pdf2md-tool
 APP_ID=com.dramirezbe.sami.desktop
 ICON_NAME=com.dramirezbe.sami
+sami_home="${SAMI_HOME:-$HOME/.sami}"
 data_dir="${XDG_DATA_HOME:-$HOME/.local/share}"
 
 info() { printf '[SAMI] %s\n' "$*" >&2; }
@@ -153,8 +154,8 @@ install_ui() {
             asset="SAMI-$UI_VERSION-linux-x64.AppImage"
             asset_url="$release_dir/$asset"
             checksum_url="$release_dir/SHA256SUMS"
-            install_dir="$data_dir/sami"
-            install_dir="$(mkdir -p "$install_dir" && cd "$install_dir" && pwd)"
+            install_dir="$sami_home/bin"
+            mkdir -p "$install_dir"
             appimage="$install_dir/SAMI.AppImage"
             info 'Downloading the SAMI desktop app...'
             status="$(curl -sSL --connect-timeout 15 --max-time 300 -w '%{http_code}' "$asset_url" -o "$temporary_dir/$asset" || true)"
@@ -207,7 +208,7 @@ refresh_menu() {
 }
 
 uninstall_ui() {
-    rm -f "$data_dir/sami/SAMI.AppImage" "$data_dir/applications/$APP_ID" \
+    rm -f "$sami_home/bin/SAMI.AppImage" "$data_dir/applications/$APP_ID" \
         "$data_dir/icons/hicolor/512x512/apps/$ICON_NAME.png"
     refresh_menu
     info 'Removed the SAMI desktop app and its menu entry.'

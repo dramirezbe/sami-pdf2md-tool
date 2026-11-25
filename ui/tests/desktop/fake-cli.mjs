@@ -15,7 +15,7 @@ if (!process.versions.electron && process.env.SAMI_TEST_CLI === "1" &&
 function health() {
   const mode = { ready: true, available: true, device: "cpu" };
   console.log(JSON.stringify({
-    protocol_version: 1, cli_version: "0.2.4", installation_id: "demo-ui-test",
+    protocol_version: 1, cli_version: "0.3.1", installation_id: "demo-ui-test",
     status: "ready", selected_device: "cpu", warnings: [], repair_reasons: [],
     paths: { executable: process.execPath, sami_home: process.env.SAMI_HOME },
     modes: { fast: mode, balanced: mode, quality: mode },
@@ -47,7 +47,7 @@ async function convert() {
       for (const name of await readdir(path)) if (extname(name).toLowerCase() === ".pdf") inputs.push(join(path, name));
     } else inputs.push(path);
   }
-  emit("run_started", { mode, default_mode: "balanced", version: "0.2.4", requested_device: "auto" });
+  emit("run_started", { mode, default_mode: "balanced", version: "0.3.1", requested_device: "auto" });
   emit("inputs_resolved", { count: inputs.length, inputs, issues: [] });
   let finished = 0;
   for (const [index, input] of inputs.entries()) {

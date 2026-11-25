@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SAMI — PDF to Markdown</title>
+<meta name="description" content="Convert PDFs to structured Markdown with figures. Local, keyless, no API needed.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📄</text></svg>">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+:root {
+  --bg: #fafaf9;
+  --bg-elevated: #ffffff;
+  --fg: #1c1917;
+  --fg-muted: #57534e;
+  --accent: #d97706;
+  --accent-hover: #b45309;
+  --accent-soft: #fef3c7;
+  --border: #e7e5e4;
+  --code-bg: #f5f5f4;
+  --radius: 10px;
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-mono: 'SF Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0c0a09;
+    --bg-elevated: #1c1917;
+    --fg: #fafaf9;
+    --fg-muted: #a8a29e;
+    --accent: #f59e0b;
+    --accent-hover: #fbbf24;
+    --accent-soft: #451a03;
+    --border: #292524;
+    --code-bg: #1c1917;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0c0a09;
+  --bg-elevated: #1c1917;
+  --fg: #fafaf9;
+  --fg-muted: #a8a29e;
+  --accent: #f59e0b;
+  --accent-hover: #fbbf24;
+  --accent-soft: #451a03;
+  --border: #292524;
+  --code-bg: #1c1917;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding-left: max(20px, env(safe-area-inset-left, 0px));
+  padding-right: max(20px, env(safe-area-inset-right, 0px));
+}
+
+/* --- Nav --- */
+nav {
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 10;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+}
+nav .container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+}
+.nav-brand {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.25rem;
+  color: var(--fg);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.nav-brand svg { width: 28px; height: 28px; }
+.nav-links { display: flex; gap: 24px; align-items: center; }
+.nav-links a {
+  color: var(--fg-muted);
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: color 0.15s;
+}
+.nav-links a:hover { color: var(--fg); }
+.gh-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.gh-link svg { width: 18px; height: 18px; fill: currentColor; }
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto;
+  height: env(safe-area-inset-top, 0px);
+  z-index: 10;
+  background: var(--bg);
+}
+
+/* --- Hero --- */
+.hero {
+  padding-block: 80px 60px;
+  text-align: center;
+}
+.hero h1 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(2rem, 5vw, 3rem);
+  line-height: 1.15;
+  text-wrap: balance;
+  margin-bottom: 16px;
+}
+.hero h1 span { color: var(--accent); }
+.hero p {
+  color: var(--fg-muted);
+  font-size: 1.125rem;
+  max-width: 540px;
+  margin: 0 auto 40px;
+  text-wrap: balance;
+}
+
+/* --- Downloads --- */
+.downloads {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+.download-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 28px;
+  border-radius: var(--radius);
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.15s, transform 0.1s;
+  cursor: pointer;
+  border: none;
+  min-width: 200px;
+  justify-content: center;
+}
+.download-btn:active { transform: scale(0.98); }
+.download-btn svg { width: 20px; height: 20px; flex-shrink: 0; }
+.download-btn.primary {
+  background: var(--accent);
+  color: #fff;
+}
+.download-btn.primary:hover { background: var(--accent-hover); }
+.download-btn.secondary {
+  background: var(--bg-elevated);
+  color: var(--fg);
+  border: 1px solid var(--border);
+}
+.download-btn.secondary:hover { background: var(--code-bg); }
+.download-btn.disabled {
+  background: var(--code-bg);
+  color: var(--fg-muted);
+  border: 1px solid var(--border);
+  cursor: default;
+  opacity: 0.7;
+}
+.download-meta {
+  font-size: 0.8125rem;
+  color: var(--fg-muted);
+  text-align: center;
+}
+.download-meta a { color: var(--accent); text-decoration: none; }
+.download-meta a:hover { text-decoration: underline; }
+
+/* --- Copyable command blocks --- */
+.cmd-block {
+  position: relative;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  max-width: 640px;
+  margin: 0 auto;
+  display: none;
+}
+.cmd-block.active { display: block; }
+.cmd-block pre {
+  padding: 16px 52px 16px 20px;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  overflow-x: auto;
+  white-space: pre;
+  margin: 0;
+}
+.copy-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, border-color 0.15s;
+}
+.copy-btn:hover { color: var(--fg); border-color: var(--fg-muted); }
+.copy-btn svg { width: 16px; height: 16px; }
+.copy-btn.copied { color: #16a34a; border-color: #16a34a; }
+
+/* --- Terminal demo --- */
+.terminal {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+  margin: 48px auto 0;
+  max-width: 560px;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  line-height: 1.8;
+  overflow-x: auto;
+}
+.terminal .prompt { color: var(--accent); }
+.terminal .comment { color: var(--fg-muted); }
+
+/* --- Features --- */
+.features {
+  padding-block: 80px;
+}
+.features h2 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.5rem;
+  text-align: center;
+  margin-bottom: 48px;
+}
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 24px;
+}
+.feature-card {
+  padding: 24px;
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+}
+.feature-card .icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+  font-size: 1.25rem;
+}
+.feature-card h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1rem;
+  margin-bottom: 6px;
+}
+.feature-card p {
+  color: var(--fg-muted);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+/* --- Modes --- */
+.modes {
+  padding-block: 0 80px;
+}
+.modes h2 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.5rem;
+  text-align: center;
+  margin-bottom: 32px;
+}
+.modes-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.modes-table th,
+.modes-table td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.modes-table th {
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fg-muted);
+}
+.modes-table td { color: var(--fg); }
+.modes-table code {
+  background: var(--code-bg);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.8125rem;
+}
+.modes-wrapper { overflow-x: auto; }
+
+/* --- Install CLI --- */
+.install-section {
+  padding-block: 0 80px;
+}
+.install-section h2 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.5rem;
+  text-align: center;
+  margin-bottom: 8px;
+}
+.install-section .subtitle {
+  text-align: center;
+  color: var(--fg-muted);
+  margin-bottom: 32px;
+  font-size: 0.9375rem;
+}
+.install-tabs {
+  display: flex;
+  gap: 0;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+.install-tab {
+  padding: 8px 20px;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--fg-muted);
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.install-tab:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+.install-tab:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+.install-tab:not(:first-child) { border-left: none; }
+.install-tab.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* --- Footer --- */
+footer {
+  border-top: 1px solid var(--border);
+  padding-block: 24px;
+  text-align: center;
+  font-size: 0.8125rem;
+  color: var(--fg-muted);
+}
+footer a { color: var(--accent); text-decoration: none; }
+footer a:hover { text-decoration: underline; }
+
+@media (max-width: 600px) {
+  .hero { padding-block: 48px 40px; }
+  .downloads { flex-direction: column; align-items: center; }
+  .download-btn { width: 100%; max-width: 320px; }
+  .nav-links .hide-mobile { display: none; }
+  .features { padding-block: 48px; }
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="container">
+    <a href="#" class="nav-brand">
+      <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="32" height="32" rx="7" fill="var(--accent)"/>
+        <text x="16" y="22" text-anchor="middle" font-family="'Space Grotesk',system-ui" font-weight="700" font-size="16" fill="#fff">S</text>
+      </svg>
+      SAMI
+    </a>
+    <div class="nav-links">
+      <a href="#features" class="hide-mobile">Features</a>
+      <a href="#install" class="hide-mobile">Install</a>
+      <a href="getting-started.html">Docs</a>
+      <a href="https://github.com/dramirezbe/sami-pdf2md-tool" target="_blank" rel="noopener" class="gh-link">
+        <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        GitHub
+      </a>
+    </div>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="container">
+    <h1>PDF to Markdown.<br><span>Local. No keys.</span></h1>
+    <p>SAMI converts your PDFs into clean, structured Markdown with extracted figures. Runs entirely on your machine.</p>
+
+    <div class="downloads" id="downloads">
+      <a class="download-btn secondary disabled" id="dl-win" href="#">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M0 3.01l8.15-1.12v7.87H0V3.01zm9.08-1.24L20 0v9.76H9.08V1.77zM20 10.85V20l-10.92-1.5v-7.65H20zM8.15 18.37L0 17.26v-6.5h8.15v7.61z"/></svg>
+        <span>Windows (.exe)</span>
+      </a>
+      <a class="download-btn secondary disabled" id="dl-deb" href="#">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10.16 0C7.56 0 6.5 2.56 6.5 4.7c0 1.2.34 2.08.82 2.98-.9.42-2.37 1.26-2.37 2.84 0 .9.34 1.5.76 1.94-.6.44-1.36 1.14-1.36 2.3 0 2.1 2.56 3.24 5.74 3.24 3.18 0 5.72-1.14 5.72-3.24 0-1.16-.76-1.86-1.36-2.3.42-.44.76-1.04.76-1.94 0-1.58-1.46-2.42-2.36-2.84.48-.9.82-1.78.82-2.98C13.67 2.56 12.76 0 10.16 0z"/></svg>
+        <span>Linux (.deb)</span>
+      </a>
+      <a class="download-btn secondary disabled" id="dl-linux" href="#">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10.16 0C7.56 0 6.5 2.56 6.5 4.7c0 1.2.34 2.08.82 2.98-.9.42-2.37 1.26-2.37 2.84 0 .9.34 1.5.76 1.94-.6.44-1.36 1.14-1.36 2.3 0 2.1 2.56 3.24 5.74 3.24 3.18 0 5.72-1.14 5.72-3.24 0-1.16-.76-1.86-1.36-2.3.42-.44.76-1.04.76-1.94 0-1.58-1.46-2.42-2.36-2.84.48-.9.82-1.78.82-2.98C13.67 2.56 12.76 0 10.16 0z"/></svg>
+        <span>Linux (.AppImage)</span>
+      </a>
+      <a class="download-btn secondary disabled" id="dl-mac" href="#">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M15.68 10.55c-.03-2.65 2.17-3.92 2.27-3.98-1.23-1.8-3.15-2.05-3.84-2.08-1.63-.17-3.19 1-4.02 1-.83 0-2.11-.97-3.47-.95-1.78.03-3.43 1.07-4.35 2.72-1.86 3.22-.47 7.98 1.33 10.6.89 1.28 1.94 2.72 3.33 2.67 1.33-.05 1.84-.86 3.46-.86 1.61 0 2.07.86 3.48.84 1.44-.03 2.34-1.3 3.22-2.59 1.01-1.49 1.43-2.93 1.45-3.01-.03-.01-2.79-1.07-2.82-4.24zM13.07 2.86c.74-.9 1.23-2.14 1.1-3.38-1.06.04-2.35.72-3.11 1.62-.68.79-1.28 2.06-1.12 3.27 1.18.09 2.39-.6 3.13-1.51z"/></svg>
+        <span>macOS (.dmg)</span>
+      </a>
+    </div>
+    <p class="download-meta" id="download-meta">Loading release info...</p>
+
+    <div class="terminal">
+      <div><span class="prompt">$</span> sami paper.pdf</div>
+      <div class="comment"># &rarr; paper/paper.md + figures/</div>
+      <div>&nbsp;</div>
+      <div><span class="prompt">$</span> sami report.pdf --mode fast</div>
+      <div class="comment"># Fast mode, CPU only</div>
+      <div>&nbsp;</div>
+      <div><span class="prompt">$</span> sami *.pdf -o converted/</div>
+      <div class="comment"># Batch convert to custom directory</div>
+    </div>
+  </div>
+</section>
+
+<section class="features" id="features">
+  <div class="container">
+    <h2>Why SAMI</h2>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="icon">&#128274;</div>
+        <h3>Completely local</h3>
+        <p>Your documents never leave your machine. No uploads, no cloud, no API keys.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">&#9889;</div>
+        <h3>Three conversion modes</h3>
+        <p>Fast for speed, Balanced for accuracy, Quality for complex tables and VLM layout detection.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">&#128444;</div>
+        <h3>Figures extracted</h3>
+        <p>Images and figures are automatically extracted alongside your Markdown output.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">&#128187;</div>
+        <h3>Desktop app</h3>
+        <p>Drag-and-drop GUI for Windows and Linux. Preview PDFs and Markdown side by side.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">&#127384;</div>
+        <h3>GPU acceleration</h3>
+        <p>Automatic CUDA detection. Falls back to CPU gracefully with zero configuration.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">&#128230;</div>
+        <h3>One-line install</h3>
+        <p>Single command on Linux, macOS, and Windows. Handles Python, dependencies, and models.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="modes">
+  <div class="container">
+    <h2>Conversion Modes</h2>
+    <div class="modes-wrapper">
+      <table class="modes-table">
+        <thead>
+          <tr><th>Mode</th><th>Engine</th><th>Speed</th><th>Quality</th><th>GPU</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>--mode fast</code></td><td>RF-DETR</td><td>Fast</td><td>Good</td><td>Not needed</td></tr>
+          <tr><td><code>--mode balanced</code></td><td>Marker + Torch</td><td>Moderate</td><td>Better</td><td>Optional</td></tr>
+          <tr><td><code>--mode quality</code></td><td>VLM (llama.cpp)</td><td>Slower</td><td>Best</td><td>Optional</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="install-section" id="install">
+  <div class="container">
+    <h2>CLI Install</h2>
+    <p class="subtitle">One command. No prerequisites.</p>
+    <div class="install-tabs">
+      <button class="install-tab active" data-tab="linux">Linux / macOS</button>
+      <button class="install-tab" data-tab="windows">Windows</button>
+    </div>
+    <div class="cmd-block active" id="tab-linux">
+      <pre>curl -fsSL https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.sh | bash</pre>
+      <button class="copy-btn" data-cmd="curl -fsSL https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.sh | bash" aria-label="Copy command">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M5 11H3.5A1.5 1.5 0 012 9.5v-7A1.5 1.5 0 013.5 1h7A1.5 1.5 0 0112 2.5V5"/></svg>
+      </button>
+    </div>
+    <div class="cmd-block" id="tab-windows">
+      <pre>irm https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.ps1 | iex</pre>
+      <button class="copy-btn" data-cmd="irm https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.ps1 | iex" aria-label="Copy command">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M5 11H3.5A1.5 1.5 0 012 9.5v-7A1.5 1.5 0 013.5 1h7A1.5 1.5 0 0112 2.5V5"/></svg>
+      </button>
+    </div>
+    <p style="text-align:center;margin-top:16px"><a href="getting-started.html" style="color:var(--accent);font-size:0.875rem;font-weight:500;text-decoration:none">View full documentation &rarr;</a></p>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    MIT License &middot; <a href="https://github.com/dramirezbe/sami-pdf2md-tool" target="_blank" rel="noopener">GitHub</a>
+  </div>
+</footer>
+
+<script>
+(function() {
+  var REPO = "dramirezbe/sami-pdf2md-tool";
+  var meta = document.getElementById("download-meta");
+  var dlWin = document.getElementById("dl-win");
+  var dlDeb = document.getElementById("dl-deb");
+  var dlLinux = document.getElementById("dl-linux");
+  var dlMac = document.getElementById("dl-mac");
+
+  function detectOS() {
+    var ua = navigator.userAgent || navigator.platform || "";
+    if (/Win/i.test(ua)) return "win";
+    if (/Mac/i.test(ua)) return "mac";
+    return "linux";
+  }
+
+  function enableBtn(btn, url) {
+    btn.href = url;
+    btn.classList.remove("disabled");
+    btn.classList.add("secondary");
+    btn.target = "_blank";
+    btn.rel = "noopener";
+  }
+
+  function highlightPrimary(os) {
+    var map = { win: dlWin, linux: dlDeb, mac: dlMac };
+    var btn = map[os];
+    if (btn && !btn.classList.contains("disabled")) {
+      btn.classList.remove("secondary");
+      btn.classList.add("primary");
+    }
+  }
+
+  fetch("https://api.github.com/repos/" + REPO + "/releases?per_page=10")
+    .then(function(r) { return r.json(); })
+    .then(function(releases) {
+      var release = releases.find(function(r) { return !r.draft && !r.prerelease; });
+      if (!release) release = releases.find(function(r) { return !r.draft; });
+      if (!release && releases.length) release = releases[0];
+      if (!release) {
+        meta.textContent = "No releases found yet.";
+        return;
+      }
+
+      var assets = release.assets || [];
+      var version = release.tag_name;
+
+      assets.forEach(function(a) {
+        var name = a.name.toLowerCase();
+        if (name.endsWith("-setup.exe") || (name.endsWith(".exe") && name.includes("win"))) {
+          enableBtn(dlWin, a.browser_download_url);
+        } else if (name.endsWith(".deb")) {
+          enableBtn(dlDeb, a.browser_download_url);
+        } else if (name.endsWith(".appimage")) {
+          enableBtn(dlLinux, a.browser_download_url);
+        } else if (name.endsWith(".dmg")) {
+          enableBtn(dlMac, a.browser_download_url);
+        }
+      });
+
+      if (dlMac.classList.contains("disabled")) {
+        dlMac.querySelector("span").textContent = "macOS (coming soon)";
+      }
+
+      highlightPrimary(detectOS());
+      meta.innerHTML = version + " &middot; <a href=\"" + release.html_url + "\" target=\"_blank\" rel=\"noopener\">Release notes</a>";
+    })
+    .catch(function() {
+      meta.textContent = "Could not load releases. Visit GitHub for downloads.";
+    });
+
+  // Tab switching
+  document.querySelectorAll(".install-tab").forEach(function(tab) {
+    tab.addEventListener("click", function() {
+      document.querySelectorAll(".install-tab").forEach(function(t) { t.classList.remove("active"); });
+      document.querySelectorAll(".cmd-block").forEach(function(c) { c.classList.remove("active"); });
+      tab.classList.add("active");
+      document.getElementById("tab-" + tab.dataset.tab).classList.add("active");
+    });
+  });
+
+  // Copy buttons
+  var checkSvg = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8.5l3 3 7-7"/></svg>';
+  var copySvg = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M5 11H3.5A1.5 1.5 0 012 9.5v-7A1.5 1.5 0 013.5 1h7A1.5 1.5 0 0112 2.5V5"/></svg>';
+  document.querySelectorAll(".copy-btn").forEach(function(btn) {
+    btn.addEventListener("click", function() {
+      var cmd = btn.getAttribute("data-cmd");
+      try {
+        navigator.clipboard.writeText(cmd).then(function() {
+          btn.innerHTML = checkSvg;
+          btn.classList.add("copied");
+          setTimeout(function() {
+            btn.innerHTML = copySvg;
+            btn.classList.remove("copied");
+          }, 2000);
+        });
+      } catch(e) {
+        var textarea = document.createElement("textarea");
+        textarea.value = cmd;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.body.removeChild(textarea);
+      }
+    });
+  });
+})();
+</script>
+</body>
+</html>
