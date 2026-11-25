@@ -46,10 +46,10 @@ jobs:
 
       - name: Verify entry point metadata and version consistency
         run: |
-          python -c "import tomllib, re, pathlib; \
+          python -c "import tomllib; \
+            from importlib.metadata import version; \
             d=tomllib.load(open('pyproject.toml','rb')); \
-            v_toml=d['project']['version']; \
-            v_init=re.search(r'__version__\s*=\s*\"([^\"]+)\"', pathlib.Path('sami/__init__.py').read_text()).group(1); \
-            assert v_toml==v_init, f'version drift: pyproject={v_toml} __init__={v_init}'; \
+            assert 'version' in d['project'].get('dynamic', []), 'version must be dynamic (setuptools-scm)'; \
+            v=version('sami-pdf2md-tool'); \
             assert d['project']['scripts']['sami']=='sami.cli:main'; \
-            print('packaging OK, version', v_toml)"
+            print('packaging OK, version', v)"
