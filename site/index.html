@@ -3,50 +3,80 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
 <title>SAMI — PDF to Markdown</title>
 <meta name="description" content="Convert PDFs to structured Markdown with figures. Local, keyless, no API needed.">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📄</text></svg>">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'><rect width='128' height='128' rx='28' fill='%237B6DAF'/><path d='M22 100V28H44L64 56 84 28H106V100H86V58L64 84 42 58V100Z' fill='%23fff'/></svg>">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
 :root {
-  --bg: #fafaf9;
-  --bg-elevated: #ffffff;
-  --fg: #1c1917;
-  --fg-muted: #57534e;
-  --accent: #d97706;
-  --accent-hover: #b45309;
-  --accent-soft: #fef3c7;
-  --border: #e7e5e4;
-  --code-bg: #f5f5f4;
+  --bg: #F0F0F0;
+  --surface: #FFFFFF;
+  --raised: #FAFAFA;
+  --inset: #F5F5F5;
+  --border: #E5E5E5;
+  --border-subtle: #F0F0F0;
+  --text: #1A1A1A;
+  --text-muted: #777777;
+  --text-tertiary: #999999;
+  --brand: #7B6DAF;
+  --brand-hover: #6A5D98;
+  --brand-active: #5C5087;
+  --brand-subtle: rgba(123, 109, 175, 0.08);
+  --on-brand: #FFFFFF;
+  --success: #62C554;
+  --error: #E24B4A;
+  --warning: #E5A63B;
+  --info: #4A9FD9;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.06);
+  --shadow-md: 0 2px 8px rgba(0,0,0,0.08);
+  --shadow-lg: 0 4px 16px rgba(0,0,0,0.1);
   --radius: 10px;
-  --font-display: 'Space Grotesk', system-ui, sans-serif;
-  --font-body: 'Inter', system-ui, sans-serif;
-  --font-mono: 'SF Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace;
+  --radius-sm: 6px;
+  --font-heading: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0c0a09;
-    --bg-elevated: #1c1917;
-    --fg: #fafaf9;
-    --fg-muted: #a8a29e;
-    --accent: #f59e0b;
-    --accent-hover: #fbbf24;
-    --accent-soft: #451a03;
-    --border: #292524;
-    --code-bg: #1c1917;
+    --bg: #1A1A1A;
+    --surface: #1E1E1E;
+    --raised: #252525;
+    --inset: #2A2A2A;
+    --border: #333333;
+    --border-subtle: #2A2A2A;
+    --text: #E0E0E0;
+    --text-muted: #999999;
+    --text-tertiary: #777777;
+    --brand: #9B8DC8;
+    --brand-hover: #A99AD4;
+    --brand-active: #7B6DAF;
+    --brand-subtle: rgba(155, 141, 200, 0.1);
+    --on-brand: #FFFFFF;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.2);
+    --shadow-md: 0 2px 8px rgba(0,0,0,0.3);
+    --shadow-lg: 0 4px 16px rgba(0,0,0,0.4);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #0c0a09;
-  --bg-elevated: #1c1917;
-  --fg: #fafaf9;
-  --fg-muted: #a8a29e;
-  --accent: #f59e0b;
-  --accent-hover: #fbbf24;
-  --accent-soft: #451a03;
-  --border: #292524;
-  --code-bg: #1c1917;
+  --bg: #1A1A1A;
+  --surface: #1E1E1E;
+  --raised: #252525;
+  --inset: #2A2A2A;
+  --border: #333333;
+  --border-subtle: #2A2A2A;
+  --text: #E0E0E0;
+  --text-muted: #999999;
+  --text-tertiary: #777777;
+  --brand: #9B8DC8;
+  --brand-hover: #A99AD4;
+  --brand-active: #7B6DAF;
+  --brand-subtle: rgba(155, 141, 200, 0.1);
+  --on-brand: #FFFFFF;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.2);
+  --shadow-md: 0 2px 8px rgba(0,0,0,0.3);
+  --shadow-lg: 0 4px 16px rgba(0,0,0,0.4);
   color-scheme: dark;
 }
 
@@ -54,28 +84,33 @@
 html { scroll-behavior: smooth; }
 body {
   background: var(--bg);
-  color: var(--fg);
+  color: var(--text);
   font-family: var(--font-body);
   font-size: 16px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: env(safe-area-inset-top, 0px) env(safe-area-inset-bottom, 0px);
+}
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto;
+  height: env(safe-area-inset-top, 0px);
+  z-index: 10;
+  background: var(--surface);
 }
 
-.container {
-  max-width: 960px;
-  margin: 0 auto;
-  padding-left: max(20px, env(safe-area-inset-left, 0px));
-  padding-right: max(20px, env(safe-area-inset-right, 0px));
-}
+.container { max-width: 960px; margin: 0 auto; }
 
 /* --- Nav --- */
 nav {
   position: sticky;
   top: env(safe-area-inset-top, 0px);
   z-index: 10;
-  background: var(--bg);
+  background: var(--surface);
   border-bottom: 1px solid var(--border);
-  backdrop-filter: blur(8px);
 }
 nav .container {
   display: flex;
@@ -84,312 +119,333 @@ nav .container {
   height: 56px;
 }
 .nav-brand {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 1.25rem;
-  color: var(--fg);
-  text-decoration: none;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--text);
 }
 .nav-brand svg { width: 28px; height: 28px; }
-.nav-links { display: flex; gap: 24px; align-items: center; }
+.nav-brand-text h1 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 1.0625rem;
+  line-height: 1.1;
+  letter-spacing: -0.35px;
+  margin: 0;
+}
+.nav-brand-text p {
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+  letter-spacing: 0.015em;
+  margin: 2px 0 0;
+}
+.nav-links { display: flex; gap: 20px; align-items: center; }
 .nav-links a {
-  color: var(--fg-muted);
+  color: var(--text-muted);
   text-decoration: none;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 500;
   transition: color 0.15s;
 }
-.nav-links a:hover { color: var(--fg); }
+.nav-links a:hover { color: var(--text); }
 .gh-link {
   display: flex;
   align-items: center;
   gap: 6px;
 }
-.gh-link svg { width: 18px; height: 18px; fill: currentColor; }
-
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0 0 auto;
-  height: env(safe-area-inset-top, 0px);
-  z-index: 10;
-  background: var(--bg);
-}
+.gh-link svg { width: 16px; height: 16px; fill: currentColor; }
 
 /* --- Hero --- */
-.hero {
-  padding-block: 80px 60px;
-  text-align: center;
-}
-.hero h1 {
-  font-family: var(--font-display);
+.hero { padding-block: 72px 48px; text-align: center; }
+.hero .eyebrow {
+  color: var(--brand);
+  font-size: 0.625rem;
   font-weight: 700;
-  font-size: clamp(2rem, 5vw, 3rem);
-  line-height: 1.15;
-  text-wrap: balance;
-  margin-bottom: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.11em;
+  margin-bottom: 10px;
 }
-.hero h1 span { color: var(--accent); }
-.hero p {
-  color: var(--fg-muted);
-  font-size: 1.125rem;
-  max-width: 540px;
-  margin: 0 auto 40px;
+.hero h2 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: clamp(1.75rem, 4.5vw, 2.5rem);
+  letter-spacing: -0.7px;
+  line-height: 1.2;
   text-wrap: balance;
+  margin-bottom: 14px;
+}
+.hero p.lead {
+  color: var(--text-muted);
+  font-size: 1rem;
+  max-width: 520px;
+  margin: 0 auto 36px;
+  text-wrap: balance;
+}
+
+/* --- Author --- */
+.author {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 36px;
+  padding: 8px 16px 8px 8px;
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  background: var(--surface);
+  text-decoration: none;
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.author:hover { border-color: var(--brand); box-shadow: var(--shadow-sm); }
+.author img {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
 }
 
 /* --- Downloads --- */
 .downloads {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 10px;
   justify-content: center;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
-.download-btn {
+.btn {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 14px 28px;
-  border-radius: var(--radius);
+  justify-content: center;
+  gap: 9px;
+  min-height: 42px;
+  padding: 0 20px;
+  border-radius: 7px;
   font-family: var(--font-body);
-  font-size: 0.9375rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   text-decoration: none;
-  transition: background 0.15s, transform 0.1s;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
   cursor: pointer;
-  border: none;
-  min-width: 200px;
-  justify-content: center;
+  border: 1px solid transparent;
+  white-space: nowrap;
 }
-.download-btn:active { transform: scale(0.98); }
-.download-btn svg { width: 20px; height: 20px; flex-shrink: 0; }
-.download-btn.primary {
-  background: var(--accent);
-  color: #fff;
+.btn:active:not(.disabled) { transform: translateY(1px); }
+.btn svg { width: 18px; height: 18px; flex-shrink: 0; }
+.btn-primary {
+  background: var(--brand);
+  color: var(--on-brand);
 }
-.download-btn.primary:hover { background: var(--accent-hover); }
-.download-btn.secondary {
-  background: var(--bg-elevated);
-  color: var(--fg);
-  border: 1px solid var(--border);
+.btn-primary:hover { background: var(--brand-hover); }
+.btn-secondary {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
 }
-.download-btn.secondary:hover { background: var(--code-bg); }
-.download-btn.disabled {
-  background: var(--code-bg);
-  color: var(--fg-muted);
-  border: 1px solid var(--border);
+.btn-secondary:hover { background: var(--inset); }
+.btn.disabled {
+  background: var(--inset);
+  color: var(--text-tertiary);
+  border-color: var(--border);
   cursor: default;
-  opacity: 0.7;
+  opacity: 0.6;
 }
 .download-meta {
-  font-size: 0.8125rem;
-  color: var(--fg-muted);
+  font-size: 0.75rem;
+  color: var(--text-muted);
   text-align: center;
 }
-.download-meta a { color: var(--accent); text-decoration: none; }
+.download-meta a { color: var(--brand); text-decoration: none; }
 .download-meta a:hover { text-decoration: underline; }
 
-/* --- Copyable command blocks --- */
+/* --- Terminal --- */
+.terminal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 22px;
+  margin: 40px auto 0;
+  max-width: 540px;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.8;
+  overflow-x: auto;
+  box-shadow: var(--shadow-sm);
+}
+.terminal .prompt { color: var(--brand); font-weight: 500; }
+.terminal .comment { color: var(--text-tertiary); }
+
+/* --- Features --- */
+.features { padding-block: 72px; }
+.section-eyebrow {
+  color: var(--brand);
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.11em;
+  text-align: center;
+  margin-bottom: 8px;
+}
+.section-title {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 1.5rem;
+  letter-spacing: -0.7px;
+  text-align: center;
+  margin-bottom: 40px;
+}
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+.feature-card {
+  padding: 20px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.feature-card .icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--brand-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+  font-size: 1.125rem;
+}
+.feature-card h3 {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 0.875rem;
+  margin-bottom: 4px;
+}
+.feature-card p {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+
+/* --- Modes table --- */
+.modes { padding-block: 0 72px; }
+.modes-wrapper { overflow-x: auto; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+th, td {
+  padding: 10px 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+th {
+  font-weight: 600;
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+code {
+  font-family: var(--font-mono);
+  font-size: 0.8125em;
+  background: var(--inset);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* --- CLI Install --- */
+.install-section { padding-block: 0 72px; }
+.install-section .subtitle {
+  text-align: center;
+  color: var(--text-muted);
+  margin-bottom: 24px;
+  font-size: 0.875rem;
+}
+.install-tabs {
+  display: flex;
+  gap: 0;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+.install-tab {
+  padding: 7px 18px;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.install-tab:first-child { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+.install-tab:last-child { border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+.install-tab:not(:first-child) { border-left: none; }
+.install-tab.active {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: var(--on-brand);
+}
 .cmd-block {
   position: relative;
-  background: var(--bg-elevated);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   max-width: 640px;
   margin: 0 auto;
   display: none;
+  box-shadow: var(--shadow-sm);
 }
 .cmd-block.active { display: block; }
 .cmd-block pre {
-  padding: 16px 52px 16px 20px;
+  padding: 14px 48px 14px 18px;
   font-family: var(--font-mono);
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   overflow-x: auto;
   white-space: pre;
   margin: 0;
 }
 .copy-btn {
   position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 36px;
-  height: 36px;
+  top: 7px;
+  right: 7px;
+  width: 32px;
+  height: 32px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--bg);
-  color: var(--fg-muted);
+  color: var(--text-muted);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: color 0.15s, border-color 0.15s;
 }
-.copy-btn:hover { color: var(--fg); border-color: var(--fg-muted); }
-.copy-btn svg { width: 16px; height: 16px; }
-.copy-btn.copied { color: #16a34a; border-color: #16a34a; }
-
-/* --- Terminal demo --- */
-.terminal {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 20px 24px;
-  margin: 48px auto 0;
-  max-width: 560px;
-  font-family: var(--font-mono);
-  font-size: 0.875rem;
-  line-height: 1.8;
-  overflow-x: auto;
-}
-.terminal .prompt { color: var(--accent); }
-.terminal .comment { color: var(--fg-muted); }
-
-/* --- Features --- */
-.features {
-  padding-block: 80px;
-}
-.features h2 {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 1.5rem;
-  text-align: center;
-  margin-bottom: 48px;
-}
-.features-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 24px;
-}
-.feature-card {
-  padding: 24px;
-  border-radius: var(--radius);
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-}
-.feature-card .icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
-  background: var(--accent-soft);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 14px;
-  font-size: 1.25rem;
-}
-.feature-card h3 {
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 1rem;
-  margin-bottom: 6px;
-}
-.feature-card p {
-  color: var(--fg-muted);
-  font-size: 0.875rem;
-  line-height: 1.6;
-}
-
-/* --- Modes --- */
-.modes {
-  padding-block: 0 80px;
-}
-.modes h2 {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 1.5rem;
-  text-align: center;
-  margin-bottom: 32px;
-}
-.modes-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.875rem;
-}
-.modes-table th,
-.modes-table td {
-  padding: 12px 16px;
-  text-align: left;
-  border-bottom: 1px solid var(--border);
-}
-.modes-table th {
-  font-weight: 600;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--fg-muted);
-}
-.modes-table td { color: var(--fg); }
-.modes-table code {
-  background: var(--code-bg);
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 0.8125rem;
-}
-.modes-wrapper { overflow-x: auto; }
-
-/* --- Install CLI --- */
-.install-section {
-  padding-block: 0 80px;
-}
-.install-section h2 {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 1.5rem;
-  text-align: center;
-  margin-bottom: 8px;
-}
-.install-section .subtitle {
-  text-align: center;
-  color: var(--fg-muted);
-  margin-bottom: 32px;
-  font-size: 0.9375rem;
-}
-.install-tabs {
-  display: flex;
-  gap: 0;
-  justify-content: center;
-  margin-bottom: 16px;
-}
-.install-tab {
-  padding: 8px 20px;
-  background: none;
-  border: 1px solid var(--border);
-  color: var(--fg-muted);
-  font-family: var(--font-body);
-  font-size: 0.8125rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.install-tab:first-child { border-radius: var(--radius) 0 0 var(--radius); }
-.install-tab:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
-.install-tab:not(:first-child) { border-left: none; }
-.install-tab.active {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-}
+.copy-btn:hover { color: var(--text); border-color: var(--text-muted); }
+.copy-btn svg { width: 14px; height: 14px; }
+.copy-btn.copied { color: var(--success); border-color: var(--success); }
 
 /* --- Footer --- */
 footer {
   border-top: 1px solid var(--border);
-  padding-block: 24px;
+  padding-block: 20px;
   text-align: center;
-  font-size: 0.8125rem;
-  color: var(--fg-muted);
+  font-size: 0.75rem;
+  color: var(--text-muted);
 }
-footer a { color: var(--accent); text-decoration: none; }
+footer a { color: var(--brand); text-decoration: none; }
 footer a:hover { text-decoration: underline; }
 
 @media (max-width: 600px) {
-  .hero { padding-block: 48px 40px; }
+  .hero { padding-block: 48px 36px; }
   .downloads { flex-direction: column; align-items: center; }
-  .download-btn { width: 100%; max-width: 320px; }
+  .btn { width: 100%; max-width: 320px; }
   .nav-links .hide-mobile { display: none; }
+  .nav-brand-text p { display: none; }
   .features { padding-block: 48px; }
 }
 </style>
@@ -399,11 +455,11 @@ footer a:hover { text-decoration: underline; }
 <nav>
   <div class="container">
     <a href="#" class="nav-brand">
-      <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect width="32" height="32" rx="7" fill="var(--accent)"/>
-        <text x="16" y="22" text-anchor="middle" font-family="'Space Grotesk',system-ui" font-weight="700" font-size="16" fill="#fff">S</text>
-      </svg>
-      SAMI
+      <svg viewBox="0 0 128 128"><rect width="128" height="128" rx="28" fill="var(--brand)"/><path d="M22 100V28H44L64 56 84 28H106V100H86V58L64 84 42 58V100Z" fill="#fff"/></svg>
+      <div class="nav-brand-text">
+        <h1>SAMI</h1>
+        <p>Smart Automated Markdown Interpreter</p>
+      </div>
     </a>
     <div class="nav-links">
       <a href="#features" class="hide-mobile">Features</a>
@@ -419,23 +475,29 @@ footer a:hover { text-decoration: underline; }
 
 <section class="hero">
   <div class="container">
-    <h1>PDF to Markdown.<br><span>Local. No keys.</span></h1>
-    <p>SAMI converts your PDFs into clean, structured Markdown with extracted figures. Runs entirely on your machine.</p>
+    <p class="eyebrow">PDF to Markdown</p>
+    <h2>Your documents, converted locally</h2>
+    <p class="lead">SAMI converts PDFs into clean, structured Markdown with extracted figures. Runs entirely on your machine &mdash; no uploads, no API keys.</p>
+
+    <a class="author" href="https://github.com/dramirezbe" target="_blank" rel="noopener">
+      <img src="https://github.com/dramirezbe.png?size=56" alt="dramirezbe" width="28" height="28">
+      Built by dramirezbe
+    </a>
 
     <div class="downloads" id="downloads">
-      <a class="download-btn secondary disabled" id="dl-win" href="#">
+      <a class="btn btn-secondary disabled" id="dl-win" href="#">
         <svg viewBox="0 0 20 20" fill="currentColor"><path d="M0 3.01l8.15-1.12v7.87H0V3.01zm9.08-1.24L20 0v9.76H9.08V1.77zM20 10.85V20l-10.92-1.5v-7.65H20zM8.15 18.37L0 17.26v-6.5h8.15v7.61z"/></svg>
         <span>Windows (.exe)</span>
       </a>
-      <a class="download-btn secondary disabled" id="dl-deb" href="#">
+      <a class="btn btn-secondary disabled" id="dl-deb" href="#">
         <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10.16 0C7.56 0 6.5 2.56 6.5 4.7c0 1.2.34 2.08.82 2.98-.9.42-2.37 1.26-2.37 2.84 0 .9.34 1.5.76 1.94-.6.44-1.36 1.14-1.36 2.3 0 2.1 2.56 3.24 5.74 3.24 3.18 0 5.72-1.14 5.72-3.24 0-1.16-.76-1.86-1.36-2.3.42-.44.76-1.04.76-1.94 0-1.58-1.46-2.42-2.36-2.84.48-.9.82-1.78.82-2.98C13.67 2.56 12.76 0 10.16 0z"/></svg>
         <span>Linux (.deb)</span>
       </a>
-      <a class="download-btn secondary disabled" id="dl-linux" href="#">
+      <a class="btn btn-secondary disabled" id="dl-linux" href="#">
         <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10.16 0C7.56 0 6.5 2.56 6.5 4.7c0 1.2.34 2.08.82 2.98-.9.42-2.37 1.26-2.37 2.84 0 .9.34 1.5.76 1.94-.6.44-1.36 1.14-1.36 2.3 0 2.1 2.56 3.24 5.74 3.24 3.18 0 5.72-1.14 5.72-3.24 0-1.16-.76-1.86-1.36-2.3.42-.44.76-1.04.76-1.94 0-1.58-1.46-2.42-2.36-2.84.48-.9.82-1.78.82-2.98C13.67 2.56 12.76 0 10.16 0z"/></svg>
         <span>Linux (.AppImage)</span>
       </a>
-      <a class="download-btn secondary disabled" id="dl-mac" href="#">
+      <a class="btn btn-secondary disabled" id="dl-mac" href="#">
         <svg viewBox="0 0 20 20" fill="currentColor"><path d="M15.68 10.55c-.03-2.65 2.17-3.92 2.27-3.98-1.23-1.8-3.15-2.05-3.84-2.08-1.63-.17-3.19 1-4.02 1-.83 0-2.11-.97-3.47-.95-1.78.03-3.43 1.07-4.35 2.72-1.86 3.22-.47 7.98 1.33 10.6.89 1.28 1.94 2.72 3.33 2.67 1.33-.05 1.84-.86 3.46-.86 1.61 0 2.07.86 3.48.84 1.44-.03 2.34-1.3 3.22-2.59 1.01-1.49 1.43-2.93 1.45-3.01-.03-.01-2.79-1.07-2.82-4.24zM13.07 2.86c.74-.9 1.23-2.14 1.1-3.38-1.06.04-2.35.72-3.11 1.62-.68.79-1.28 2.06-1.12 3.27 1.18.09 2.39-.6 3.13-1.51z"/></svg>
         <span>macOS (.dmg)</span>
       </a>
@@ -457,7 +519,8 @@ footer a:hover { text-decoration: underline; }
 
 <section class="features" id="features">
   <div class="container">
-    <h2>Why SAMI</h2>
+    <p class="section-eyebrow">Why SAMI</p>
+    <h2 class="section-title">Everything runs on your machine</h2>
     <div class="features-grid">
       <div class="feature-card">
         <div class="icon">&#128274;</div>
@@ -467,7 +530,7 @@ footer a:hover { text-decoration: underline; }
       <div class="feature-card">
         <div class="icon">&#9889;</div>
         <h3>Three conversion modes</h3>
-        <p>Fast for speed, Balanced for accuracy, Quality for complex tables and VLM layout detection.</p>
+        <p>Fast for speed, Balanced for accuracy, Quality for complex tables and VLM layout.</p>
       </div>
       <div class="feature-card">
         <div class="icon">&#128444;</div>
@@ -495,9 +558,10 @@ footer a:hover { text-decoration: underline; }
 
 <section class="modes">
   <div class="container">
-    <h2>Conversion Modes</h2>
+    <p class="section-eyebrow">Conversion</p>
+    <h2 class="section-title">Modes</h2>
     <div class="modes-wrapper">
-      <table class="modes-table">
+      <table>
         <thead>
           <tr><th>Mode</th><th>Engine</th><th>Speed</th><th>Quality</th><th>GPU</th></tr>
         </thead>
@@ -513,7 +577,8 @@ footer a:hover { text-decoration: underline; }
 
 <section class="install-section" id="install">
   <div class="container">
-    <h2>CLI Install</h2>
+    <p class="section-eyebrow">Get started</p>
+    <h2 class="section-title">CLI Install</h2>
     <p class="subtitle">One command. No prerequisites.</p>
     <div class="install-tabs">
       <button class="install-tab active" data-tab="linux">Linux / macOS</button>
@@ -531,7 +596,7 @@ footer a:hover { text-decoration: underline; }
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M5 11H3.5A1.5 1.5 0 012 9.5v-7A1.5 1.5 0 013.5 1h7A1.5 1.5 0 0112 2.5V5"/></svg>
       </button>
     </div>
-    <p style="text-align:center;margin-top:16px"><a href="getting-started.html" style="color:var(--accent);font-size:0.875rem;font-weight:500;text-decoration:none">View full documentation &rarr;</a></p>
+    <p style="text-align:center;margin-top:14px"><a href="getting-started.html" style="color:var(--brand);font-size:0.8125rem;font-weight:600;text-decoration:none">View full documentation &rarr;</a></p>
   </div>
 </section>
 
@@ -560,7 +625,6 @@ footer a:hover { text-decoration: underline; }
   function enableBtn(btn, url) {
     btn.href = url;
     btn.classList.remove("disabled");
-    btn.classList.add("secondary");
     btn.target = "_blank";
     btn.rel = "noopener";
   }
@@ -569,8 +633,8 @@ footer a:hover { text-decoration: underline; }
     var map = { win: dlWin, linux: dlDeb, mac: dlMac };
     var btn = map[os];
     if (btn && !btn.classList.contains("disabled")) {
-      btn.classList.remove("secondary");
-      btn.classList.add("primary");
+      btn.classList.remove("btn-secondary");
+      btn.classList.add("btn-primary");
     }
   }
 
@@ -637,15 +701,7 @@ footer a:hover { text-decoration: underline; }
             btn.classList.remove("copied");
           }, 2000);
         });
-      } catch(e) {
-        var textarea = document.createElement("textarea");
-        textarea.value = cmd;
-        textarea.style.position = "fixed";
-        textarea.style.opacity = "0";
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.body.removeChild(textarea);
-      }
+      } catch(e) {}
     });
   });
 })();
