@@ -2,6 +2,8 @@
 
 Convert PDF files to Markdown with extracted figures. Local, keyless, no API needed.
 
+**[Website](https://dramirezbe.github.io/sami-pdf2md-tool/)** · **[Getting Started](https://dramirezbe.github.io/sami-pdf2md-tool/getting-started.html)** · **[Releases](https://github.com/dramirezbe/sami-pdf2md-tool/releases)**
+
 For each PDF, sami creates a folder containing:
 - `<name>.md` — text with LaTeX equations and Markdown tables
 - Figure images referenced by the Markdown
@@ -12,7 +14,7 @@ Powered by [Marker](https://github.com/VikParuchuri/marker).
 
 SAMI Desktop lets you add several PDFs or folders, review the list, and start a conversion with **Convert**. It shows the active document, elapsed time, and batch progress. When a result is available, you can preview its PDF and Markdown, open the output folder, or export the document with its figures. Settings offer English and Spanish and light and dark appearance.
 
-The `0.3.0` distribution targets native Windows with a per-user installer and Linux with an AppImage. The packages include the built desktop app. Setup prepares or reuses the exact compatible CLI, starting with `0.2.4`.
+The desktop distribution targets native Windows with a per-user installer and Linux with an AppImage and `.deb` package. Setup prepares or reuses the matching CLI automatically.
 
 With the desktop release available, the quick installers below prepare the CLI and install the desktop app. Windows adds SAMI to **Installed apps**, **Start**, and the desktop. Linux adds SAMI to the application menu.
 
