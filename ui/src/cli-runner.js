@@ -5,7 +5,10 @@ import { homedir } from 'node:os';
 import path from 'node:path';
 import { readFile } from 'node:fs/promises';
 
-export const CLI_VERSION = '0.3.2';
+import { createRequire } from 'node:module';
+const _pkg = createRequire(import.meta.url)('../package.json');
+
+export const CLI_VERSION = _pkg.version;
 export const PROTOCOL_VERSION = 1;
 
 const MODES = new Set(['fast', 'balanced', 'quality']);

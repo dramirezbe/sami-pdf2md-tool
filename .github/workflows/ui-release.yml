@@ -5,15 +5,35 @@ on:
     branches: [main]
     paths: ['ui/**', 'packaging/**', 'install.sh', 'install.ps1', '.github/workflows/ui-release.yml']
   push:
-    branches: [feat/0_3_0_sami_ui]
-    tags: [v0.3.2]
+    tags: ['v*']
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
+  resolve-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      is_release: ${{ steps.v.outputs.is_release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: v
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+            echo "is_release=true" >> "$GITHUB_OUTPUT"
+          else
+            RAW=$(git describe --tags --match 'v*' 2>/dev/null || echo v0.0.0-dev)
+            echo "version=${RAW#v}" >> "$GITHUB_OUTPUT"
+            echo "is_release=false" >> "$GITHUB_OUTPUT"
+          fi
+
   package:
+    needs: resolve-version
     strategy:
       fail-fast: false
       matrix:
@@ -21,17 +41,19 @@ jobs:
           - os: windows-latest
             target: win
             package_script: package:win
-            artifact: SAMI-0.3.2-win-x64-setup.exe
           - os: ubuntu-24.04
             target: linux
             package_script: package:linux
-            artifact: SAMI-0.3.2-linux-x64.AppImage
     runs-on: ${{ matrix.os }}
     defaults:
       run:
         working-directory: ui
+    env:
+      RELEASE_VERSION: ${{ needs.resolve-version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -39,11 +61,80 @@ jobs:
           cache: npm
           cache-dependency-path: ui/package-lock.json
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Stamp version from tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          V="$RELEASE_VERSION"
+
+          # 1. Sync UI package.json
+          npm version "$V" --no-git-tag-version --allow-same-version
+
+          # 2. Build Python wheel (setuptools-scm reads tag)
+          cd ..
+          pip install build "setuptools-scm>=8"
+          SETUPTOOLS_SCM_PRETEND_VERSION="$V" python -m build --wheel
+          WHEEL="sami_pdf2md_tool-${V}-py3-none-any.whl"
+          if command -v sha256sum >/dev/null; then
+            SHA=$(sha256sum "dist/$WHEEL" | cut -d' ' -f1)
+          else
+            SHA=$(shasum -a 256 "dist/$WHEEL" | cut -d' ' -f1)
+          fi
+
+          # 3. Patch packaging scripts
+          sed -i "s/^CLI_VERSION=.*/CLI_VERSION=$V/"                       packaging/linux/cli-install.sh
+          sed -i "s/^CLI_WHEEL=.*/CLI_WHEEL=$WHEEL/"                      packaging/linux/cli-install.sh
+          sed -i "s/^CLI_SHA256=.*/CLI_SHA256=$SHA/"                       packaging/linux/cli-install.sh
+          sed -i "s/^UI_VERSION=.*/UI_VERSION=$V/"                         packaging/linux/cli-install.sh
+
+          sed -i "s/^\\\$cliVersion = .*/\\\$cliVersion = '$V'/"          packaging/windows/cli-install.ps1
+          sed -i "s/^\\\$wheelName = .*/\\\$wheelName = 'sami_pdf2md_tool-${V}-py3-none-any.whl'/" packaging/windows/cli-install.ps1
+          sed -i "s/^\\\$wheelSha256 = .*/\\\$wheelSha256 = '$SHA'/"      packaging/windows/cli-install.ps1
+
+          # 4. Patch runtime-manifest.json
+          python -c "
+          import json, sys
+          v = sys.argv[1]; sha = sys.argv[2]; tag = f'v{v}'
+          with open('packaging/runtime-manifest.json') as f: m = json.load(f)
+          m['sami_version'] = v
+          m['cli']['version'] = v
+          m['cli']['wheel'] = f'sami_pdf2md_tool-{v}-py3-none-any.whl'
+          m['cli']['url'] = f'https://github.com/dramirezbe/sami-pdf2md-tool/releases/download/{tag}/sami_pdf2md_tool-{v}-py3-none-any.whl'
+          m['cli']['sha256'] = sha
+          m['ui']['version'] = v
+          m['ui']['release_tag'] = tag
+          for plat in ('windows_x64', 'linux_x64'):
+              if plat not in m['ui']: continue
+              p = m['ui'][plat]
+              for key in list(p):
+                  if 'asset' in key.lower():
+                      old = p[key]
+                      import re
+                      p[key] = re.sub(r'SAMI-[0-9]+\.[0-9]+\.[0-9]+', f'SAMI-{v}', old)
+                  if 'url' in key.lower():
+                      old = p[key]
+                      import re
+                      p[key] = re.sub(r'/v[0-9]+\.[0-9]+\.[0-9]+/', f'/{tag}/', old)
+                      p[key] = re.sub(r'SAMI-[0-9]+\.[0-9]+\.[0-9]+', f'SAMI-{v}', p[key])
+          with open('packaging/runtime-manifest.json', 'w') as f: json.dump(m, f, indent=2)
+          " "$V" "$SHA"
+
+          # 5. Patch install.ps1 (top-level)
+          sed -i "s/^\\\$uiVersion = .*/\\\$uiVersion = '$V'/"           install.ps1
+
+          # Store wheel path for upload
+          echo "WHEEL_PATH=dist/$WHEEL" >> "$GITHUB_ENV"
+          echo "WHEEL_NAME=$WHEEL" >> "$GITHUB_ENV"
+          echo "WHEEL_SHA=$SHA" >> "$GITHUB_ENV"
+
       - run: npm ci
       - name: Check desktop release and CLI identities
         shell: bash
         env:
-          APP_ARTIFACT: ${{ matrix.artifact }}
           APP_PLATFORM: ${{ matrix.target }}
         run: >
           node --input-type=module -e '
@@ -54,7 +145,8 @@ jobs:
           const platform = process.env.APP_PLATFORM === "win" ? "windows_x64" : "linux_x64";
           if (version !== manifest.ui.version || `v${version}` !== manifest.ui.release_tag ||
               CLI_VERSION !== manifest.cli.version || PROTOCOL_VERSION !== manifest.cli.protocol_version ||
-              PROTOCOL_VERSION !== manifest.ui.protocol_version || process.env.APP_ARTIFACT !== manifest.ui[platform].asset) {
+              PROTOCOL_VERSION !== manifest.ui.protocol_version || !manifest.ui[platform].asset.includes(version)) {
+            console.error({ version, CLI_VERSION, manifest_ui: manifest.ui.version, manifest_cli: manifest.cli.version });
             throw new Error("UI package, CLI protocol, and release manifest versions must match their declared identities.");
           }'
       - run: npm test
@@ -83,8 +175,9 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: |
-          chmod +x release/${{ matrix.artifact }}
-          APPIMAGE_EXTRACT_AND_RUN=1 xvfb-run -a release/${{ matrix.artifact }} --no-sandbox --smoke-test
+          APPIMAGE=$(ls release/SAMI-*-linux-x64.AppImage 2>/dev/null | head -1)
+          chmod +x "$APPIMAGE"
+          APPIMAGE_EXTRACT_AND_RUN=1 xvfb-run -a "$APPIMAGE" --no-sandbox --smoke-test
 
       - name: Smoke test packaged Windows app
         if: runner.os == 'Windows'
@@ -99,17 +192,39 @@ jobs:
         with:
           name: desktop-${{ matrix.target }}-x64
           path: |
-            ui/release/${{ matrix.artifact }}
+            ui/release/SAMI-*-win-x64-setup.exe
+            ui/release/SAMI-*-linux-x64.AppImage
             ui/release/SAMI-*-linux-x64.deb
           if-no-files-found: error
           retention-days: 14
 
+      - name: Upload wheel artifact
+        if: matrix.target == 'linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-wheel
+          path: ${{ env.WHEEL_PATH }}
+          if-no-files-found: error
+
+      - name: Upload stamped packaging files
+        if: matrix.target == 'linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: stamped-packaging
+          path: |
+            packaging/runtime-manifest.json
+            packaging/linux/cli-install.sh
+            packaging/windows/cli-install.ps1
+            install.ps1
+
   draft-release:
-    needs: package
-    if: github.ref == 'refs/tags/v0.3.2'
+    needs: [resolve-version, package]
+    if: needs.resolve-version.outputs.is_release == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      RELEASE_VERSION: ${{ needs.resolve-version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -117,25 +232,36 @@ jobs:
           path: release-assets
           pattern: desktop-*-x64
           merge-multiple: true
-      - name: Add manifest, bootstraps, and checksums
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-wheel
+          path: release-assets
+      - uses: actions/download-artifact@v4
+        with:
+          name: stamped-packaging
+          path: stamped
+      - name: Assemble release assets and checksums
         run: |
-          cp packaging/runtime-manifest.json release-assets/
-          cp install.sh install.ps1 release-assets/
-          cp packaging/linux/cli-install.sh release-assets/cli-install-linux.sh
-          cp packaging/windows/cli-install.ps1 release-assets/cli-install-windows.ps1
+          V="$RELEASE_VERSION"
+          cp stamped/packaging/runtime-manifest.json release-assets/
+          cp stamped/install.ps1 release-assets/
+          cp install.sh release-assets/
+          cp stamped/packaging/linux/cli-install.sh release-assets/cli-install-linux.sh
+          cp stamped/packaging/windows/cli-install.ps1 release-assets/cli-install-windows.ps1
           cd release-assets
-          sha256sum SAMI-0.3.2-* runtime-manifest.json install.sh install.ps1 \
+          sha256sum SAMI-* sami_pdf2md_tool-* runtime-manifest.json install.sh install.ps1 \
             cli-install-linux.sh cli-install-windows.ps1 > SHA256SUMS
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.3.2
-          name: SAMI 0.3.2
+          tag_name: v${{ env.RELEASE_VERSION }}
+          name: SAMI ${{ env.RELEASE_VERSION }}
           draft: true
           generate_release_notes: true
           files: |
-            release-assets/SAMI-0.3.2-win-x64-setup.exe
-            release-assets/SAMI-0.3.2-linux-x64.AppImage
-            release-assets/SAMI-0.3.2-linux-x64.deb
+            release-assets/SAMI-*-win-x64-setup.exe
+            release-assets/SAMI-*-linux-x64.AppImage
+            release-assets/SAMI-*-linux-x64.deb
+            release-assets/sami_pdf2md_tool-*-py3-none-any.whl
             release-assets/runtime-manifest.json
             release-assets/install.sh
             release-assets/install.ps1

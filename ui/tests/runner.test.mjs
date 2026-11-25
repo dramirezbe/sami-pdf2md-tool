@@ -6,11 +6,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
-import { CliRunner } from '../src/cli-runner.js';
+import { CliRunner, CLI_VERSION } from '../src/cli-runner.js';
 
 const fixture = fileURLToPath(new URL('./fixtures/fake-sami-cli.cjs', import.meta.url));
 
-async function installation(t, { version = '0.3.2', protocol = 1, identity = 'fake-install-id' } = {}) {
+async function installation(t, { version = CLI_VERSION, protocol = 1, identity = 'fake-install-id' } = {}) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'sami-ui-runner-'));
   let runner;
   t.after(async () => {

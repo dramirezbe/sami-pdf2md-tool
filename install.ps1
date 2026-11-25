@@ -11,7 +11,15 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repository = 'dramirezbe/sami-pdf2md-tool'
-$uiVersion = '0.3.2'
+
+function Get-LatestUiVersion {
+    try {
+        $release = Invoke-RestMethod -UseBasicParsing -Uri "https://api.github.com/repos/$repository/releases/latest" -TimeoutSec 20
+        if ($release.tag_name -match '^v(.+)$') { return $Matches[1] }
+    } catch {}
+    throw 'Could not determine the latest SAMI release. Check https://github.com/dramirezbe/sami-pdf2md-tool/releases'
+}
+$uiVersion = Get-LatestUiVersion
 
 function Get-SamiArchitecture {
     try { $architecture = [string][System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture }

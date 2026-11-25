@@ -5,6 +5,7 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+sami/_version.py
 
 # Electron dependencies and distributables
 ui/node_modules/

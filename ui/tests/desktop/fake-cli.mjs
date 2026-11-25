@@ -1,8 +1,12 @@
-import { copyFile, mkdir, readdir, stat, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, join } from "node:path";
 import { createInterface } from "node:readline";
 import { randomUUID } from "node:crypto";
 import { setTimeout as wait } from "node:timers/promises";
+import { fileURLToPath } from "node:url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const { version: PKG_VERSION } = JSON.parse(await readFile(join(__dirname, "../../package.json"), "utf8"));
 
 const command = basename(process.argv[1] || "");
 if (!process.versions.electron && process.env.SAMI_TEST_CLI === "1" &&
@@ -15,7 +19,7 @@ if (!process.versions.electron && process.env.SAMI_TEST_CLI === "1" &&
 function health() {
   const mode = { ready: true, available: true, device: "cpu" };
   console.log(JSON.stringify({
-    protocol_version: 1, cli_version: "0.3.2", installation_id: "demo-ui-test",
+    protocol_version: 1, cli_version: PKG_VERSION, installation_id: "demo-ui-test",
     status: "ready", selected_device: "cpu", warnings: [], repair_reasons: [],
     paths: { executable: process.execPath, sami_home: process.env.SAMI_HOME },
     modes: { fast: mode, balanced: mode, quality: mode },
@@ -47,7 +51,7 @@ async function convert() {
       for (const name of await readdir(path)) if (extname(name).toLowerCase() === ".pdf") inputs.push(join(path, name));
     } else inputs.push(path);
   }
-  emit("run_started", { mode, default_mode: "balanced", version: "0.3.2", requested_device: "auto" });
+  emit("run_started", { mode, default_mode: "balanced", version: PKG_VERSION, requested_device: "auto" });
   emit("inputs_resolved", { count: inputs.length, inputs, issues: [] });
   let finished = 0;
   for (const [index, input] of inputs.entries()) {

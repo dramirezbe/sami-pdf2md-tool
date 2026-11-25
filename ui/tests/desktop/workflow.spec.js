@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ui = resolve(fileURLToPath(new URL("../../", import.meta.url)));
+const pkg = JSON.parse(await readFile(join(ui, "package.json"), "utf8"));
 const source = fileURLToPath(new URL("../../../test-pdfs/test_document.pdf", import.meta.url));
 const fixture = new URL("fake-cli.mjs", import.meta.url).href;
 const image = join(ui, "assets", "icons", "sami-icon-128.png");
@@ -25,7 +26,7 @@ test("opens the desktop app, stages a mixed batch, previews and exports the resu
   await Promise.all(dropped.map(path => copyFile(source, path)));
   await writeFile(join(home, "installation.json"), JSON.stringify({
     schema_version: 1, installation_id: "demo-ui-test", executable: process.execPath,
-    protocol_version: 1, cli_version: "0.3.2", sami_home: home,
+    protocol_version: 1, cli_version: pkg.version, sami_home: home,
   }));
   const env = { ...process.env, SAMI_HOME: selectedCli || home };
   if (!selectedCli) {
