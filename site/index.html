@@ -357,7 +357,7 @@ code {
   border-radius: 4px;
 }
 
-/* --- CLI Install --- */
+/* --- Terminal Install --- */
 .install-section { padding-block: 0 72px; }
 .install-section .subtitle {
   text-align: center;
@@ -395,7 +395,7 @@ code {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  max-width: 640px;
+  max-width: 820px;
   margin: 0 auto;
   display: none;
   box-shadow: var(--shadow-sm);
@@ -503,8 +503,33 @@ footer a:hover { text-decoration: underline; }
       </a>
     </div>
     <p class="download-meta" id="download-meta">Loading release info...</p>
+  </div>
+</section>
 
-    <div class="terminal">
+<section class="install-section" id="install">
+  <div class="container">
+    <p class="section-eyebrow">Get started</p>
+    <h2 class="section-title">Terminal Install</h2>
+    <p class="subtitle">One command installs the CLI and the desktop app. No prerequisites.</p>
+    <div class="install-tabs">
+      <button class="install-tab active" data-tab="linux">Linux / macOS</button>
+      <button class="install-tab" data-tab="windows">Windows</button>
+    </div>
+    <div class="cmd-block active" id="tab-linux">
+      <pre>curl -fsSL https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.sh | bash</pre>
+      <button class="copy-btn" data-cmd="curl -fsSL https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.sh | bash" aria-label="Copy command">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M5 11H3.5A1.5 1.5 0 012 9.5v-7A1.5 1.5 0 013.5 1h7A1.5 1.5 0 0112 2.5V5"/></svg>
+      </button>
+    </div>
+    <div class="cmd-block" id="tab-windows">
+      <pre>irm https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.ps1 | iex</pre>
+      <button class="copy-btn" data-cmd="irm https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.ps1 | iex" aria-label="Copy command">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M5 11H3.5A1.5 1.5 0 012 9.5v-7A1.5 1.5 0 013.5 1h7A1.5 1.5 0 0112 2.5V5"/></svg>
+      </button>
+    </div>
+    <p style="text-align:center;margin-top:14px"><a href="getting-started.html" style="color:var(--brand);font-size:0.8125rem;font-weight:600;text-decoration:none">View full documentation &rarr;</a></p>
+
+    <div class="terminal" style="margin-top:32px">
       <div><span class="prompt">$</span> sami paper.pdf</div>
       <div class="comment"># &rarr; paper/paper.md + figures/</div>
       <div>&nbsp;</div>
@@ -572,31 +597,6 @@ footer a:hover { text-decoration: underline; }
         </tbody>
       </table>
     </div>
-  </div>
-</section>
-
-<section class="install-section" id="install">
-  <div class="container">
-    <p class="section-eyebrow">Get started</p>
-    <h2 class="section-title">CLI Install</h2>
-    <p class="subtitle">One command. No prerequisites.</p>
-    <div class="install-tabs">
-      <button class="install-tab active" data-tab="linux">Linux / macOS</button>
-      <button class="install-tab" data-tab="windows">Windows</button>
-    </div>
-    <div class="cmd-block active" id="tab-linux">
-      <pre>curl -fsSL https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.sh | bash</pre>
-      <button class="copy-btn" data-cmd="curl -fsSL https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.sh | bash" aria-label="Copy command">
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M5 11H3.5A1.5 1.5 0 012 9.5v-7A1.5 1.5 0 013.5 1h7A1.5 1.5 0 0112 2.5V5"/></svg>
-      </button>
-    </div>
-    <div class="cmd-block" id="tab-windows">
-      <pre>irm https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.ps1 | iex</pre>
-      <button class="copy-btn" data-cmd="irm https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.ps1 | iex" aria-label="Copy command">
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M5 11H3.5A1.5 1.5 0 012 9.5v-7A1.5 1.5 0 013.5 1h7A1.5 1.5 0 0112 2.5V5"/></svg>
-      </button>
-    </div>
-    <p style="text-align:center;margin-top:14px"><a href="getting-started.html" style="color:var(--brand);font-size:0.8125rem;font-weight:600;text-decoration:none">View full documentation &rarr;</a></p>
   </div>
 </section>
 
