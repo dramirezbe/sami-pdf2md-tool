@@ -4,7 +4,11 @@
   "desktopName": "com.dramirezbe.sami.desktop",
   "version": "0.3.2",
   "description": "Smart Automated Markdown Interpreter",
-  "author": "SAMI contributors",
+  "author": {
+    "name": "SAMI contributors",
+    "email": "dramirezbe@unal.edu.co"
+  },
+  "homepage": "https://dramirezbe.github.io/sami-pdf2md-tool/",
   "license": "MIT",
   "private": true,
   "type": "module",
@@ -18,7 +22,7 @@
     "test": "node --test \"tests/*.test.*\"",
     "test:desktop": "playwright test",
     "package:win": "npm run build && electron-builder --win nsis --x64 --publish never",
-    "package:linux": "npm run build && electron-builder --linux AppImage deb --x64 --publish never"
+    "package:linux": "npm run build && electron-builder --linux --x64 --publish never"
   },
   "overrides": {
     "minimatch@>=7.0.0 <11.0.1": "11.0.9"
