@@ -2,7 +2,7 @@
   "name": "sami-desktop",
   "productName": "SAMI",
   "desktopName": "com.dramirezbe.sami.desktop",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Smart Automated Markdown Interpreter",
   "author": "SAMI contributors",
   "license": "MIT",

@@ -11,7 +11,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repository = 'dramirezbe/sami-pdf2md-tool'
-$uiVersion = '0.3.1'
+$uiVersion = '0.3.2'
 
 function Get-SamiArchitecture {
     try { $architecture = [string][System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture }

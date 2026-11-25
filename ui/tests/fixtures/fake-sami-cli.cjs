@@ -5,7 +5,7 @@ const { createInterface } = require('node:readline');
 
 const args = process.argv.slice(2);
 const command = args[0];
-const version = process.env.FAKE_CLI_VERSION || '0.3.1';
+const version = process.env.FAKE_CLI_VERSION || '0.3.2';
 const identity = process.env.FAKE_INSTALLATION_ID || 'fake-install-id';
 
 if (command === 'health' || command === 'setup') {

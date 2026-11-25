@@ -10,7 +10,7 @@ import { CliRunner } from '../src/cli-runner.js';
 
 const fixture = fileURLToPath(new URL('./fixtures/fake-sami-cli.cjs', import.meta.url));
 
-async function installation(t, { version = '0.3.1', protocol = 1, identity = 'fake-install-id' } = {}) {
+async function installation(t, { version = '0.3.2', protocol = 1, identity = 'fake-install-id' } = {}) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'sami-ui-runner-'));
   let runner;
   t.after(async () => {

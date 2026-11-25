@@ -5,7 +5,7 @@ import { homedir } from 'node:os';
 import path from 'node:path';
 import { readFile } from 'node:fs/promises';
 
-export const CLI_VERSION = '0.3.1';
+export const CLI_VERSION = '0.3.2';
 export const PROTOCOL_VERSION = 1;
 
 const MODES = new Set(['fast', 'balanced', 'quality']);

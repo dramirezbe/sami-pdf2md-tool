@@ -6,7 +6,7 @@ on:
     paths: ['ui/**', 'packaging/**', 'install.sh', 'install.ps1', '.github/workflows/ui-release.yml']
   push:
     branches: [feat/0_3_0_sami_ui]
-    tags: [v0.3.1]
+    tags: [v0.3.2]
   workflow_dispatch:
 
 permissions:
@@ -21,11 +21,11 @@ jobs:
           - os: windows-latest
             target: win
             package_script: package:win
-            artifact: SAMI-0.3.1-win-x64-setup.exe
+            artifact: SAMI-0.3.2-win-x64-setup.exe
           - os: ubuntu-24.04
             target: linux
             package_script: package:linux
-            artifact: SAMI-0.3.1-linux-x64.AppImage
+            artifact: SAMI-0.3.2-linux-x64.AppImage
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -106,7 +106,7 @@ jobs:
 
   draft-release:
     needs: package
-    if: github.ref == 'refs/tags/v0.3.1'
+    if: github.ref == 'refs/tags/v0.3.2'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -124,18 +124,18 @@ jobs:
           cp packaging/linux/cli-install.sh release-assets/cli-install-linux.sh
           cp packaging/windows/cli-install.ps1 release-assets/cli-install-windows.ps1
           cd release-assets
-          sha256sum SAMI-0.3.1-* runtime-manifest.json install.sh install.ps1 \
+          sha256sum SAMI-0.3.2-* runtime-manifest.json install.sh install.ps1 \
             cli-install-linux.sh cli-install-windows.ps1 > SHA256SUMS
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.3.1
-          name: SAMI 0.3.1
+          tag_name: v0.3.2
+          name: SAMI 0.3.2
           draft: true
           generate_release_notes: true
           files: |
-            release-assets/SAMI-0.3.1-win-x64-setup.exe
-            release-assets/SAMI-0.3.1-linux-x64.AppImage
-            release-assets/SAMI-0.3.1-linux-x64.deb
+            release-assets/SAMI-0.3.2-win-x64-setup.exe
+            release-assets/SAMI-0.3.2-linux-x64.AppImage
+            release-assets/SAMI-0.3.2-linux-x64.deb
             release-assets/runtime-manifest.json
             release-assets/install.sh
             release-assets/install.ps1

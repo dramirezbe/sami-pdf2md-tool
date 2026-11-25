@@ -1716,7 +1716,7 @@ wheels = [
 
 [[package]]
 name = "sami-pdf2md-tool"
-version = "0.3.1"
+version = "0.3.2"
 source = { editable = "." }
 dependencies = [
     { name = "marker-pdf" },
