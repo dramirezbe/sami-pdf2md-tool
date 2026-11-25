@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="claude:viewport-fit-sides" content="cover">
 <title>SAMI — PDF to Markdown</title>
 <meta name="description" content="Convert PDFs to structured Markdown with figures. Local, keyless, no API needed.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'><rect width='128' height='128' rx='28' fill='%237B6DAF'/><path d='M22 100V28H44L64 56 84 28H106V100H86V58L64 84 42 58V100Z' fill='%23fff'/></svg>">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
+/* ===== DESIGN TOKENS ===== */
 :root {
   --bg: #F0F0F0;
   --surface: #FFFFFF;
@@ -23,6 +23,7 @@
   --brand-hover: #6A5D98;
   --brand-active: #5C5087;
   --brand-subtle: rgba(123, 109, 175, 0.08);
+  --brand-glow: rgba(123, 109, 175, 0.15);
   --on-brand: #FFFFFF;
   --success: #62C554;
   --error: #E24B4A;
@@ -31,55 +32,62 @@
   --shadow-sm: 0 1px 2px rgba(0,0,0,0.06);
   --shadow-md: 0 2px 8px rgba(0,0,0,0.08);
   --shadow-lg: 0 4px 16px rgba(0,0,0,0.1);
+  --shadow-xl: 0 8px 32px rgba(0,0,0,0.12);
   --radius: 10px;
   --radius-sm: 6px;
+  --radius-lg: 16px;
   --font-heading: 'Space Grotesk', 'Inter', system-ui, sans-serif;
   --font-body: 'Inter', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #1A1A1A;
-    --surface: #1E1E1E;
-    --raised: #252525;
-    --inset: #2A2A2A;
-    --border: #333333;
-    --border-subtle: #2A2A2A;
+    --bg: #131316;
+    --surface: #1A1A1E;
+    --raised: #222226;
+    --inset: #2A2A2E;
+    --border: #333338;
+    --border-subtle: #2A2A2E;
     --text: #E0E0E0;
     --text-muted: #999999;
-    --text-tertiary: #777777;
+    --text-tertiary: #666666;
     --brand: #9B8DC8;
     --brand-hover: #A99AD4;
     --brand-active: #7B6DAF;
     --brand-subtle: rgba(155, 141, 200, 0.1);
+    --brand-glow: rgba(155, 141, 200, 0.12);
     --on-brand: #FFFFFF;
-    --shadow-sm: 0 1px 2px rgba(0,0,0,0.2);
-    --shadow-md: 0 2px 8px rgba(0,0,0,0.3);
-    --shadow-lg: 0 4px 16px rgba(0,0,0,0.4);
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+    --shadow-md: 0 2px 8px rgba(0,0,0,0.4);
+    --shadow-lg: 0 4px 16px rgba(0,0,0,0.5);
+    --shadow-xl: 0 8px 32px rgba(0,0,0,0.6);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #1A1A1A;
-  --surface: #1E1E1E;
-  --raised: #252525;
-  --inset: #2A2A2A;
-  --border: #333333;
-  --border-subtle: #2A2A2A;
+  --bg: #131316;
+  --surface: #1A1A1E;
+  --raised: #222226;
+  --inset: #2A2A2E;
+  --border: #333338;
+  --border-subtle: #2A2A2E;
   --text: #E0E0E0;
   --text-muted: #999999;
-  --text-tertiary: #777777;
+  --text-tertiary: #666666;
   --brand: #9B8DC8;
   --brand-hover: #A99AD4;
   --brand-active: #7B6DAF;
   --brand-subtle: rgba(155, 141, 200, 0.1);
+  --brand-glow: rgba(155, 141, 200, 0.12);
   --on-brand: #FFFFFF;
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.2);
-  --shadow-md: 0 2px 8px rgba(0,0,0,0.3);
-  --shadow-lg: 0 4px 16px rgba(0,0,0,0.4);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+  --shadow-md: 0 2px 8px rgba(0,0,0,0.4);
+  --shadow-lg: 0 4px 16px rgba(0,0,0,0.5);
+  --shadow-xl: 0 8px 32px rgba(0,0,0,0.6);
   color-scheme: dark;
 }
 
+/* ===== RESET ===== */
 *, *::before, *::after { box-sizing: border-box; margin: 0; }
 html { scroll-behavior: smooth; }
 body {
@@ -89,27 +97,18 @@ body {
   font-size: 16px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
-  padding-left: max(16px, env(safe-area-inset-left, 0px));
-  padding-right: max(16px, env(safe-area-inset-right, 0px));
-  padding-block: env(safe-area-inset-top, 0px) env(safe-area-inset-bottom, 0px);
-}
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0 0 auto;
-  height: env(safe-area-inset-top, 0px);
-  z-index: 10;
-  background: var(--surface);
 }
 
-.container { max-width: 960px; margin: 0 auto; }
+.container { max-width: 1060px; margin: 0 auto; padding-inline: 24px; }
 
-/* --- Nav --- */
+/* ===== NAV ===== */
 nav {
   position: sticky;
-  top: env(safe-area-inset-top, 0px);
-  z-index: 10;
-  background: var(--surface);
+  top: 0;
+  z-index: 50;
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
   border-bottom: 1px solid var(--border);
 }
 nav .container {
@@ -132,63 +131,114 @@ nav .container {
   font-size: 1.0625rem;
   line-height: 1.1;
   letter-spacing: -0.35px;
-  margin: 0;
 }
 .nav-brand-text p {
   color: var(--text-muted);
   font-size: 0.6875rem;
   letter-spacing: 0.015em;
-  margin: 2px 0 0;
+  margin-top: 1px;
 }
-.nav-links { display: flex; gap: 20px; align-items: center; }
+.nav-links { display: flex; gap: 6px; align-items: center; }
 .nav-links a {
   color: var(--text-muted);
   text-decoration: none;
   font-size: 0.8125rem;
   font-weight: 500;
-  transition: color 0.15s;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  transition: color 0.15s, background 0.15s;
 }
-.nav-links a:hover { color: var(--text); }
+.nav-links a:hover { color: var(--text); background: var(--brand-subtle); }
 .gh-link {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
+  background: var(--inset);
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  padding: 5px 14px 5px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
+.gh-link:hover { border-color: var(--brand); box-shadow: var(--shadow-sm); color: var(--text); }
 .gh-link svg { width: 16px; height: 16px; fill: currentColor; }
+.gh-stars { color: var(--text-muted); font-weight: 500; }
 
-/* --- Hero --- */
-.hero { padding-block: 72px 48px; text-align: center; }
-.hero .eyebrow {
-  color: var(--brand);
-  font-size: 0.625rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.11em;
-  margin-bottom: 10px;
+/* ===== HERO ===== */
+.hero {
+  padding: 80px 0 56px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.hero::before {
+  content: "";
+  position: absolute;
+  top: -120px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, var(--brand-glow) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+.hero .container { position: relative; z-index: 1; }
+.hero .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 14px 5px 6px;
+  border-radius: 99px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-bottom: 24px;
+  text-decoration: none;
+  transition: border-color 0.15s;
+}
+.hero .badge:hover { border-color: var(--brand); }
+.hero .badge .dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 6px rgba(98, 197, 84, 0.5);
 }
 .hero h2 {
   font-family: var(--font-heading);
   font-weight: 700;
-  font-size: clamp(1.75rem, 4.5vw, 2.5rem);
-  letter-spacing: -0.7px;
-  line-height: 1.2;
+  font-size: clamp(2rem, 5vw, 3rem);
+  letter-spacing: -1px;
+  line-height: 1.15;
   text-wrap: balance;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
-.hero p.lead {
+.hero h2 .gradient {
+  background: linear-gradient(135deg, var(--brand) 0%, #9B8DC8 50%, #B8A9E0 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.hero .lead {
   color: var(--text-muted);
-  font-size: 1rem;
-  max-width: 520px;
-  margin: 0 auto 36px;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  max-width: 540px;
+  margin: 0 auto 24px;
   text-wrap: balance;
 }
 
-/* --- Author --- */
+/* Author pill */
 .author {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 36px;
+  margin-bottom: 32px;
   padding: 8px 16px 8px 8px;
   border: 1px solid var(--border);
   border-radius: 99px;
@@ -206,7 +256,7 @@ nav .container {
   border-radius: 50%;
 }
 
-/* --- Downloads --- */
+/* Download buttons */
 .downloads {
   display: flex;
   flex-wrap: wrap;
@@ -214,36 +264,39 @@ nav .container {
   justify-content: center;
   margin-bottom: 20px;
 }
+
+/* Buttons */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 9px;
-  min-height: 42px;
-  padding: 0 20px;
-  border-radius: 7px;
+  min-height: 44px;
+  padding: 0 22px;
+  border-radius: 8px;
   font-family: var(--font-body);
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 600;
   text-decoration: none;
-  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+  transition: all 0.15s;
   cursor: pointer;
   border: 1px solid transparent;
   white-space: nowrap;
 }
-.btn:active:not(.disabled) { transform: translateY(1px); }
+.btn:active { transform: translateY(1px); }
 .btn svg { width: 18px; height: 18px; flex-shrink: 0; }
 .btn-primary {
   background: var(--brand);
   color: var(--on-brand);
+  box-shadow: 0 1px 3px rgba(123, 109, 175, 0.3);
 }
-.btn-primary:hover { background: var(--brand-hover); }
+.btn-primary:hover { background: var(--brand-hover); box-shadow: 0 2px 8px rgba(123, 109, 175, 0.35); }
 .btn-secondary {
   background: var(--surface);
   color: var(--text);
   border-color: var(--border);
 }
-.btn-secondary:hover { background: var(--inset); }
+.btn-secondary:hover { background: var(--inset); border-color: var(--text-tertiary); }
 .btn.disabled {
   background: var(--inset);
   color: var(--text-tertiary);
@@ -259,112 +312,8 @@ nav .container {
 .download-meta a { color: var(--brand); text-decoration: none; }
 .download-meta a:hover { text-decoration: underline; }
 
-/* --- Terminal --- */
-.terminal {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 18px 22px;
-  margin: 40px auto 0;
-  max-width: 540px;
-  font-family: var(--font-mono);
-  font-size: 0.8125rem;
-  line-height: 1.8;
-  overflow-x: auto;
-  box-shadow: var(--shadow-sm);
-}
-.terminal .prompt { color: var(--brand); font-weight: 500; }
-.terminal .comment { color: var(--text-tertiary); }
-
-/* --- Features --- */
-.features { padding-block: 72px; }
-.section-eyebrow {
-  color: var(--brand);
-  font-size: 0.625rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.11em;
-  text-align: center;
-  margin-bottom: 8px;
-}
-.section-title {
-  font-family: var(--font-heading);
-  font-weight: 600;
-  font-size: 1.5rem;
-  letter-spacing: -0.7px;
-  text-align: center;
-  margin-bottom: 40px;
-}
-.features-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 14px;
-}
-.feature-card {
-  padding: 20px;
-  border-radius: var(--radius);
-  background: var(--surface);
-  border: 1px solid var(--border);
-}
-.feature-card .icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  background: var(--brand-subtle);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 12px;
-  font-size: 1.125rem;
-}
-.feature-card h3 {
-  font-family: var(--font-heading);
-  font-weight: 600;
-  font-size: 0.875rem;
-  margin-bottom: 4px;
-}
-.feature-card p {
-  color: var(--text-muted);
-  font-size: 0.8125rem;
-  line-height: 1.55;
-}
-
-/* --- Modes table --- */
-.modes { padding-block: 0 72px; }
-.modes-wrapper { overflow-x: auto; }
-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.8125rem;
-}
-th, td {
-  padding: 10px 14px;
-  text-align: left;
-  border-bottom: 1px solid var(--border);
-}
-th {
-  font-weight: 600;
-  font-size: 0.6875rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
-}
-code {
-  font-family: var(--font-mono);
-  font-size: 0.8125em;
-  background: var(--inset);
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-
-/* --- Terminal Install --- */
-.install-section { padding-block: 0 72px; }
-.install-section .subtitle {
-  text-align: center;
-  color: var(--text-muted);
-  margin-bottom: 24px;
-  font-size: 0.875rem;
-}
+/* ===== INSTALL ===== */
+.install { padding: 48px 0 80px; }
 .install-tabs {
   display: flex;
   gap: 0;
@@ -372,7 +321,7 @@ code {
   margin-bottom: 14px;
 }
 .install-tab {
-  padding: 7px 18px;
+  padding: 8px 20px;
   background: none;
   border: 1px solid var(--border);
   color: var(--text-muted);
@@ -390,19 +339,20 @@ code {
   border-color: var(--brand);
   color: var(--on-brand);
 }
+
 .cmd-block {
   position: relative;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  max-width: 820px;
+  max-width: 700px;
   margin: 0 auto;
   display: none;
   box-shadow: var(--shadow-sm);
 }
 .cmd-block.active { display: block; }
 .cmd-block pre {
-  padding: 14px 48px 14px 18px;
+  padding: 14px 50px 14px 18px;
   font-family: var(--font-mono);
   font-size: 0.75rem;
   overflow-x: auto;
@@ -429,29 +379,378 @@ code {
 .copy-btn svg { width: 14px; height: 14px; }
 .copy-btn.copied { color: var(--success); border-color: var(--success); }
 
-/* --- Footer --- */
+/* ===== TERMINAL PREVIEW ===== */
+.terminal-section { padding: 0 0 80px; }
+.terminal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  max-width: 600px;
+  margin: 0 auto;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 2;
+  box-shadow: var(--shadow-md);
+}
+.terminal .prompt { color: var(--brand); font-weight: 500; }
+.terminal .comment { color: var(--text-tertiary); }
+.terminal .output { color: var(--success); }
+
+/* ===== DEMO (before -> after) ===== */
+.demo { padding: 0 0 80px; }
+.demo-window {
+  max-width: 820px;
+  margin: 0 auto;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-xl);
+  overflow: hidden;
+}
+.demo-content {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  min-height: 320px;
+}
+.demo-panel {
+  padding: 20px;
+  font-size: 0.75rem;
+  line-height: 1.7;
+  overflow: hidden;
+}
+.demo-panel-label {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.demo-panel-label svg { width: 14px; height: 14px; opacity: 0.6; }
+.demo-divider {
+  width: 1px;
+  background: var(--border);
+  position: relative;
+}
+.demo-divider::after {
+  content: "\2192";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--brand);
+  color: var(--on-brand);
+  font-size: 0.75rem;
+  font-weight: 700;
+  box-shadow: var(--shadow-md);
+}
+
+/* PDF mock */
+.pdf-mock { font-family: 'Georgia', 'Times New Roman', serif; color: var(--text); }
+.pdf-mock .pdf-title { font-size: 0.9375rem; font-weight: 700; margin-bottom: 8px; line-height: 1.3; }
+.pdf-mock .pdf-authors { font-size: 0.6875rem; color: var(--text-muted); font-style: italic; margin-bottom: 10px; }
+.pdf-mock .pdf-abstract-label { font-size: 0.6875rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+.pdf-mock .pdf-text { font-size: 0.6875rem; color: var(--text-muted); line-height: 1.6; margin-bottom: 8px; }
+.pdf-mock .pdf-fig {
+  background: var(--inset);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 14px;
+  text-align: center;
+  margin: 8px 0;
+}
+.pdf-mock .pdf-fig-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 50px;
+  color: var(--brand);
+  font-size: 1.5rem;
+  margin-bottom: 4px;
+}
+.pdf-mock .pdf-fig-caption { font-size: 0.625rem; color: var(--text-tertiary); }
+
+/* Markdown mock */
+.md-mock { font-family: var(--font-mono); font-size: 0.6875rem; line-height: 1.8; }
+.md-mock .md-h1 { color: var(--brand); font-weight: 700; font-size: 0.8125rem; }
+.md-mock .md-meta { color: var(--text-tertiary); font-style: italic; }
+.md-mock .md-h2 { color: var(--brand); font-weight: 600; margin-top: 6px; }
+.md-mock .md-text { color: var(--text-muted); }
+.md-mock .md-img { color: var(--success); }
+.md-mock .md-bold { color: var(--text); font-weight: 600; }
+
+/* ===== TRUST BAR ===== */
+.trust {
+  padding: 0 0 64px;
+  text-align: center;
+}
+.trust-items {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 32px;
+}
+.trust-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+.trust-item svg { width: 18px; height: 18px; color: var(--brand); flex-shrink: 0; }
+.trust-item strong { color: var(--text); font-weight: 700; }
+
+/* ===== FEATURES ===== */
+.features { padding: 64px 0 80px; }
+.section-label {
+  color: var(--brand);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  text-align: center;
+  margin-bottom: 8px;
+}
+.section-heading {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: clamp(1.375rem, 3vw, 1.75rem);
+  letter-spacing: -0.5px;
+  text-align: center;
+  margin-bottom: 12px;
+}
+.section-desc {
+  color: var(--text-muted);
+  font-size: 0.9375rem;
+  text-align: center;
+  max-width: 520px;
+  margin: 0 auto 48px;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+.feature-card {
+  padding: 24px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.feature-card:hover { border-color: color-mix(in srgb, var(--brand) 40%, var(--border)); box-shadow: var(--shadow-md); }
+.feature-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--brand-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+  color: var(--brand);
+}
+.feature-icon svg { width: 20px; height: 20px; }
+.feature-card h3 {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 0.9375rem;
+  margin-bottom: 6px;
+  letter-spacing: -0.2px;
+}
+.feature-card p {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+/* ===== MODES ===== */
+.modes { padding: 0 0 80px; }
+.modes-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  max-width: 820px;
+  margin: 0 auto;
+}
+.mode-card {
+  padding: 24px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  text-align: center;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.mode-card:hover { border-color: color-mix(in srgb, var(--brand) 40%, var(--border)); box-shadow: var(--shadow-md); }
+.mode-card.recommended {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 1px var(--brand), var(--shadow-md);
+  position: relative;
+}
+.mode-card.recommended::before {
+  content: "Default";
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--brand);
+  color: var(--on-brand);
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 10px;
+  border-radius: 99px;
+}
+.mode-name {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--brand);
+  margin-bottom: 4px;
+}
+.mode-engine {
+  font-size: 0.6875rem;
+  color: var(--text-tertiary);
+  margin-bottom: 14px;
+}
+.mode-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+.mode-badge {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 99px;
+  background: var(--inset);
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+}
+.mode-badge.gpu-no { background: color-mix(in srgb, var(--success) 8%, transparent); color: var(--success); border-color: color-mix(in srgb, var(--success) 20%, transparent); }
+.mode-badge.gpu-opt { background: color-mix(in srgb, var(--info) 8%, transparent); color: var(--info); border-color: color-mix(in srgb, var(--info) 20%, transparent); }
+
+/* ===== FINAL CTA ===== */
+.final-cta {
+  padding: 64px 0;
+  text-align: center;
+  border-top: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--brand-subtle) 0%, transparent 100%);
+}
+.final-cta h2 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: clamp(1.5rem, 3.5vw, 2rem);
+  letter-spacing: -0.5px;
+  margin-bottom: 10px;
+}
+.final-cta p {
+  color: var(--text-muted);
+  font-size: 0.9375rem;
+  margin-bottom: 28px;
+}
+.final-cta-install {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: border-color 0.15s;
+  margin-bottom: 16px;
+}
+.final-cta-install:hover { border-color: var(--brand); }
+.final-cta-install .prompt { color: var(--brand); font-weight: 500; }
+.final-cta-links {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  margin-top: 8px;
+}
+.final-cta-links a {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.final-cta-links a:hover { color: var(--brand); }
+
+/* ===== FOOTER ===== */
 footer {
   border-top: 1px solid var(--border);
-  padding-block: 20px;
-  text-align: center;
+  padding: 20px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   font-size: 0.75rem;
-  color: var(--text-muted);
+  color: var(--text-tertiary);
 }
 footer a { color: var(--brand); text-decoration: none; }
 footer a:hover { text-decoration: underline; }
+footer .footer-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+footer .author-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+footer .author-link:hover { color: var(--text); }
+footer .author-link img {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+}
 
-@media (max-width: 600px) {
-  .hero { padding-block: 48px 36px; }
-  .downloads { flex-direction: column; align-items: center; }
-  .btn { width: 100%; max-width: 320px; }
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+  .hero { padding: 56px 0 40px; }
+  .features-grid { grid-template-columns: 1fr; }
+  .modes-grid { grid-template-columns: 1fr; }
+  .demo-content { grid-template-columns: 1fr; min-height: auto; }
+  .demo-divider { width: 100%; height: 1px; }
+  .demo-divider::after { top: 50%; left: 50%; }
   .nav-links .hide-mobile { display: none; }
   .nav-brand-text p { display: none; }
-  .features { padding-block: 48px; }
+  .downloads { flex-direction: column; align-items: center; }
+  .downloads .btn { width: 100%; max-width: 320px; }
+  footer .footer-inner { flex-direction: column; gap: 8px; text-align: center; }
+}
+@media (min-width: 769px) and (max-width: 960px) {
+  .features-grid { grid-template-columns: repeat(2, 1fr); }
 }
 </style>
 </head>
 <body>
 
+<!-- ===== NAV ===== -->
 <nav>
   <div class="container">
     <a href="#" class="nav-brand">
@@ -463,21 +762,27 @@ footer a:hover { text-decoration: underline; }
     </a>
     <div class="nav-links">
       <a href="#features" class="hide-mobile">Features</a>
-      <a href="#install" class="hide-mobile">Install</a>
-      <a href="getting-started.html">Docs</a>
+      <a href="#modes" class="hide-mobile">Modes</a>
+      <a href="getting-started.html" class="hide-mobile">Docs</a>
       <a href="https://github.com/dramirezbe/sami-pdf2md-tool" target="_blank" rel="noopener" class="gh-link">
         <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-        GitHub
+        <span>GitHub</span>
+        <span class="gh-stars" id="gh-stars"></span>
       </a>
     </div>
   </div>
 </nav>
 
+<!-- ===== HERO ===== -->
 <section class="hero">
   <div class="container">
-    <p class="eyebrow">PDF to Markdown</p>
-    <h2>Your documents, converted locally</h2>
-    <p class="lead">SAMI converts PDFs into clean, structured Markdown with extracted figures. Runs entirely on your machine &mdash; no uploads, no API keys.</p>
+    <a href="https://github.com/dramirezbe/sami-pdf2md-tool/releases" target="_blank" rel="noopener" class="badge" id="version-badge">
+      <span class="dot"></span>
+      <span id="version-text">Loading version...</span>
+    </a>
+
+    <h2>PDF to Markdown,<br><span class="gradient">entirely on your machine</span></h2>
+    <p class="lead">SAMI converts PDFs into clean, structured Markdown with extracted figures. No uploads, no API keys, no cloud — just one command.</p>
 
     <a class="author" href="https://github.com/dramirezbe" target="_blank" rel="noopener">
       <img src="https://github.com/dramirezbe.png?size=56" alt="dramirezbe" width="28" height="28">
@@ -486,19 +791,19 @@ footer a:hover { text-decoration: underline; }
 
     <div class="downloads" id="downloads">
       <a class="btn btn-secondary disabled" id="dl-win" href="#">
-        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M0 3.01l8.15-1.12v7.87H0V3.01zm9.08-1.24L20 0v9.76H9.08V1.77zM20 10.85V20l-10.92-1.5v-7.65H20zM8.15 18.37L0 17.26v-6.5h8.15v7.61z"/></svg>
+        <svg viewBox="0 0 20 20" fill="currentColor" style="width:16px;height:16px"><path d="M0 3.01l8.15-1.12v7.87H0V3.01zm9.08-1.24L20 0v9.76H9.08V1.77zM20 10.85V20l-10.92-1.5v-7.65H20zM8.15 18.37L0 17.26v-6.5h8.15v7.61z"/></svg>
         <span>Windows (.exe)</span>
       </a>
       <a class="btn btn-secondary disabled" id="dl-deb" href="#">
-        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10.16 0C7.56 0 6.5 2.56 6.5 4.7c0 1.2.34 2.08.82 2.98-.9.42-2.37 1.26-2.37 2.84 0 .9.34 1.5.76 1.94-.6.44-1.36 1.14-1.36 2.3 0 2.1 2.56 3.24 5.74 3.24 3.18 0 5.72-1.14 5.72-3.24 0-1.16-.76-1.86-1.36-2.3.42-.44.76-1.04.76-1.94 0-1.58-1.46-2.42-2.36-2.84.48-.9.82-1.78.82-2.98C13.67 2.56 12.76 0 10.16 0z"/></svg>
+        <svg viewBox="0 0 20 20" fill="currentColor" style="width:16px;height:16px"><path d="M10.16 0C7.56 0 6.5 2.56 6.5 4.7c0 1.2.34 2.08.82 2.98-.9.42-2.37 1.26-2.37 2.84 0 .9.34 1.5.76 1.94-.6.44-1.36 1.14-1.36 2.3 0 2.1 2.56 3.24 5.74 3.24 3.18 0 5.72-1.14 5.72-3.24 0-1.16-.76-1.86-1.36-2.3.42-.44.76-1.04.76-1.94 0-1.58-1.46-2.42-2.36-2.84.48-.9.82-1.78.82-2.98C13.67 2.56 12.76 0 10.16 0z"/></svg>
         <span>Linux (.deb)</span>
       </a>
       <a class="btn btn-secondary disabled" id="dl-linux" href="#">
-        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10.16 0C7.56 0 6.5 2.56 6.5 4.7c0 1.2.34 2.08.82 2.98-.9.42-2.37 1.26-2.37 2.84 0 .9.34 1.5.76 1.94-.6.44-1.36 1.14-1.36 2.3 0 2.1 2.56 3.24 5.74 3.24 3.18 0 5.72-1.14 5.72-3.24 0-1.16-.76-1.86-1.36-2.3.42-.44.76-1.04.76-1.94 0-1.58-1.46-2.42-2.36-2.84.48-.9.82-1.78.82-2.98C13.67 2.56 12.76 0 10.16 0z"/></svg>
+        <svg viewBox="0 0 20 20" fill="currentColor" style="width:16px;height:16px"><path d="M10.16 0C7.56 0 6.5 2.56 6.5 4.7c0 1.2.34 2.08.82 2.98-.9.42-2.37 1.26-2.37 2.84 0 .9.34 1.5.76 1.94-.6.44-1.36 1.14-1.36 2.3 0 2.1 2.56 3.24 5.74 3.24 3.18 0 5.72-1.14 5.72-3.24 0-1.16-.76-1.86-1.36-2.3.42-.44.76-1.04.76-1.94 0-1.58-1.46-2.42-2.36-2.84.48-.9.82-1.78.82-2.98C13.67 2.56 12.76 0 10.16 0z"/></svg>
         <span>Linux (.AppImage)</span>
       </a>
       <a class="btn btn-secondary disabled" id="dl-mac" href="#">
-        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M15.68 10.55c-.03-2.65 2.17-3.92 2.27-3.98-1.23-1.8-3.15-2.05-3.84-2.08-1.63-.17-3.19 1-4.02 1-.83 0-2.11-.97-3.47-.95-1.78.03-3.43 1.07-4.35 2.72-1.86 3.22-.47 7.98 1.33 10.6.89 1.28 1.94 2.72 3.33 2.67 1.33-.05 1.84-.86 3.46-.86 1.61 0 2.07.86 3.48.84 1.44-.03 2.34-1.3 3.22-2.59 1.01-1.49 1.43-2.93 1.45-3.01-.03-.01-2.79-1.07-2.82-4.24zM13.07 2.86c.74-.9 1.23-2.14 1.1-3.38-1.06.04-2.35.72-3.11 1.62-.68.79-1.28 2.06-1.12 3.27 1.18.09 2.39-.6 3.13-1.51z"/></svg>
+        <svg viewBox="0 0 20 20" fill="currentColor" style="width:16px;height:16px"><path d="M15.68 10.55c-.03-2.65 2.17-3.92 2.27-3.98-1.23-1.8-3.15-2.05-3.84-2.08-1.63-.17-3.19 1-4.02 1-.83 0-2.11-.97-3.47-.95-1.78.03-3.43 1.07-4.35 2.72-1.86 3.22-.47 7.98 1.33 10.6.89 1.28 1.94 2.72 3.33 2.67 1.33-.05 1.84-.86 3.46-.86 1.61 0 2.07.86 3.48.84 1.44-.03 2.34-1.3 3.22-2.59 1.01-1.49 1.43-2.93 1.45-3.01-.03-.01-2.79-1.07-2.82-4.24zM13.07 2.86c.74-.9 1.23-2.14 1.1-3.38-1.06.04-2.35.72-3.11 1.62-.68.79-1.28 2.06-1.12 3.27 1.18.09 2.39-.6 3.13-1.51z"/></svg>
         <span>macOS (.dmg)</span>
       </a>
     </div>
@@ -506,114 +811,268 @@ footer a:hover { text-decoration: underline; }
   </div>
 </section>
 
-<section class="install-section" id="install">
+<!-- ===== INSTALL ===== -->
+<section class="install" id="install">
   <div class="container">
-    <p class="section-eyebrow">Get started</p>
-    <h2 class="section-title">Terminal Install</h2>
-    <p class="subtitle">One command installs the CLI and the desktop app. No prerequisites.</p>
+    <p class="section-label">Get started</p>
+    <h2 class="section-heading">Terminal Install</h2>
+    <p class="section-desc">One command installs the CLI and the desktop app. No prerequisites.</p>
+
     <div class="install-tabs">
       <button class="install-tab active" data-tab="linux">Linux / macOS</button>
       <button class="install-tab" data-tab="windows">Windows</button>
+      <button class="install-tab" data-tab="source">From source</button>
     </div>
     <div class="cmd-block active" id="tab-linux">
       <pre>curl -fsSL https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.sh | bash</pre>
-      <button class="copy-btn" data-cmd="curl -fsSL https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.sh | bash" aria-label="Copy command">
+      <button class="copy-btn" data-cmd="curl -fsSL https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.sh | bash" aria-label="Copy">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M5 11H3.5A1.5 1.5 0 012 9.5v-7A1.5 1.5 0 013.5 1h7A1.5 1.5 0 0112 2.5V5"/></svg>
       </button>
     </div>
     <div class="cmd-block" id="tab-windows">
       <pre>irm https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.ps1 | iex</pre>
-      <button class="copy-btn" data-cmd="irm https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.ps1 | iex" aria-label="Copy command">
+      <button class="copy-btn" data-cmd="irm https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.ps1 | iex" aria-label="Copy">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M5 11H3.5A1.5 1.5 0 012 9.5v-7A1.5 1.5 0 013.5 1h7A1.5 1.5 0 0112 2.5V5"/></svg>
+      </button>
+    </div>
+    <div class="cmd-block" id="tab-source">
+      <pre>git clone https://github.com/dramirezbe/sami-pdf2md-tool.git && cd sami-pdf2md-tool && uv tool install --python 3.12 -e .</pre>
+      <button class="copy-btn" data-cmd="git clone https://github.com/dramirezbe/sami-pdf2md-tool.git && cd sami-pdf2md-tool && uv tool install --python 3.12 -e ." aria-label="Copy">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M5 11H3.5A1.5 1.5 0 012 9.5v-7A1.5 1.5 0 013.5 1h7A1.5 1.5 0 0112 2.5V5"/></svg>
       </button>
     </div>
     <p style="text-align:center;margin-top:14px"><a href="getting-started.html" style="color:var(--brand);font-size:0.8125rem;font-weight:600;text-decoration:none">View full documentation &rarr;</a></p>
+  </div>
+</section>
 
-    <div class="terminal" style="margin-top:32px">
+<!-- ===== TERMINAL PREVIEW ===== -->
+<section class="terminal-section">
+  <div class="container">
+    <div class="terminal">
       <div><span class="prompt">$</span> sami paper.pdf</div>
-      <div class="comment"># &rarr; paper/paper.md + figures/</div>
+      <div class="output">&#10003; paper/paper.md + 3 figures extracted</div>
       <div>&nbsp;</div>
       <div><span class="prompt">$</span> sami report.pdf --mode fast</div>
-      <div class="comment"># Fast mode, CPU only</div>
+      <div class="comment"># CPU-only, finishes in seconds</div>
       <div>&nbsp;</div>
-      <div><span class="prompt">$</span> sami *.pdf -o converted/</div>
-      <div class="comment"># Batch convert to custom directory</div>
+      <div><span class="prompt">$</span> sami ~/papers/ --recursive -o converted/</div>
+      <div class="output">&#10003; 47 PDFs converted &#8594; converted/</div>
     </div>
   </div>
 </section>
 
+<!-- ===== DEMO: Before -> After ===== -->
+<section class="demo">
+  <div class="container">
+    <div class="demo-window">
+      <div class="demo-content">
+        <div class="demo-panel">
+          <div class="demo-panel-label">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path d="M4 2a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V7.414A2 2 0 0017.414 6L14 2.586A2 2 0 0012.586 2H4zm8.284 2L16 7.716V16H4V4h8.284z"/></svg>
+            paper.pdf
+          </div>
+          <div class="pdf-mock">
+            <div class="pdf-title">Neural Networks for Document Layout Analysis</div>
+            <div class="pdf-authors">J. Doe, A. Smith — ICML 2024</div>
+            <div class="pdf-abstract-label">Abstract</div>
+            <div class="pdf-text">We present a novel approach for document layout analysis using transformer-based architectures. Our method achieves SOTA results on PubLayNet, with 95.2% mAP...</div>
+            <div class="pdf-fig">
+              <div class="pdf-fig-placeholder">&#128202;</div>
+              <div class="pdf-fig-caption">Fig. 1: Architecture overview</div>
+            </div>
+            <div class="pdf-text">The model processes pages in two stages: region detection followed by content extraction...</div>
+          </div>
+        </div>
+        <div class="demo-divider"></div>
+        <div class="demo-panel" style="background: var(--raised);">
+          <div class="demo-panel-label">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm2 1v10h10V5H5z"/><path d="M7 7h2l1.5 2L12 7h2v6h-2V9.5L10.5 12 9 9.5V13H7V7z"/></svg>
+            paper.md
+          </div>
+          <div class="md-mock">
+            <div class="md-h1"># Neural Networks for Document Layout Analysis</div>
+            <div class="md-meta">*J. Doe, A. Smith — ICML 2024*</div>
+            <div>&nbsp;</div>
+            <div class="md-h2">## Abstract</div>
+            <div class="md-text">We present a novel approach for document layout analysis using transformer-based architectures. Our method achieves <span class="md-bold">**SOTA**</span> results on PubLayNet, with <span class="md-bold">**95.2% mAP**</span>...</div>
+            <div>&nbsp;</div>
+            <div class="md-img">![Architecture overview](figures/figure_1.png)</div>
+            <div class="md-meta">*Fig. 1: Architecture overview*</div>
+            <div>&nbsp;</div>
+            <div class="md-text">The model processes pages in two stages: region detection followed by content extraction...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== TRUST BAR ===== -->
+<section class="trust">
+  <div class="container">
+    <div class="trust-items">
+      <div class="trust-item">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 2l2.5 5 5.5.8-4 3.9.9 5.3-4.9-2.6-4.9 2.6.9-5.3-4-3.9 5.5-.8z"/></svg>
+        <span>Open source · <strong>MIT License</strong></span>
+      </div>
+      <div class="trust-item">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="14" height="14" rx="2"/><path d="M7 10l2 2 4-4"/></svg>
+        <span><strong>100% local</strong> · no data leaves your machine</span>
+      </div>
+      <div class="trust-item">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 2v16M2 10h16"/><circle cx="10" cy="10" r="8"/></svg>
+        <span>Linux · macOS · <strong>Windows</strong></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== FEATURES ===== -->
 <section class="features" id="features">
   <div class="container">
-    <p class="section-eyebrow">Why SAMI</p>
-    <h2 class="section-title">Everything runs on your machine</h2>
+    <p class="section-label">Why SAMI</p>
+    <h2 class="section-heading">Built for researchers and developers</h2>
+    <p class="section-desc">Convert academic papers, reports, and documentation to Markdown that works with your tools.</p>
+
     <div class="features-grid">
       <div class="feature-card">
-        <div class="icon">&#128274;</div>
-        <h3>Completely local</h3>
-        <p>Your documents never leave your machine. No uploads, no cloud, no API keys.</p>
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+        </div>
+        <h3>Completely private</h3>
+        <p>Your documents never leave your machine. No uploads, no cloud processing, no API keys to manage.</p>
       </div>
       <div class="feature-card">
-        <div class="icon">&#9889;</div>
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        </div>
         <h3>Three conversion modes</h3>
-        <p>Fast for speed, Balanced for accuracy, Quality for complex tables and VLM layout.</p>
+        <p>Fast for quick results, Balanced for accuracy, Quality for complex tables and VLM-powered layout.</p>
       </div>
       <div class="feature-card">
-        <div class="icon">&#128444;</div>
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+        </div>
         <h3>Figures extracted</h3>
-        <p>Images and figures are automatically extracted alongside your Markdown output.</p>
+        <p>Images and figures are automatically extracted alongside your Markdown — ready for Obsidian, Notion, or Git.</p>
       </div>
       <div class="feature-card">
-        <div class="icon">&#128187;</div>
-        <h3>Desktop app</h3>
-        <p>Drag-and-drop GUI for Windows and Linux. Preview PDFs and Markdown side by side.</p>
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        </div>
+        <h3>Desktop app included</h3>
+        <p>Drag-and-drop GUI for Windows and Linux. Preview your PDF and Markdown side by side.</p>
       </div>
       <div class="feature-card">
-        <div class="icon">&#127384;</div>
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3v18M3 12h18"/><path d="M5.636 5.636l12.728 12.728M18.364 5.636L5.636 18.364"/></svg>
+        </div>
         <h3>GPU acceleration</h3>
-        <p>Automatic CUDA detection. Falls back to CPU gracefully with zero configuration.</p>
+        <p>Auto-detects CUDA GPUs and scales layers to available VRAM. Falls back to CPU with zero config.</p>
       </div>
       <div class="feature-card">
-        <div class="icon">&#128230;</div>
-        <h3>One-line install</h3>
-        <p>Single command on Linux, macOS, and Windows. Handles Python, dependencies, and models.</p>
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 17l6-6 4 4 6-6"/><path d="M14 9h6v6"/></svg>
+        </div>
+        <h3>Batch processing</h3>
+        <p>Convert entire folders with <code style="font-family:var(--font-mono);font-size:0.8125em;background:var(--inset);padding:2px 6px;border-radius:4px">--recursive</code>. Process hundreds of PDFs with a single command.</p>
       </div>
     </div>
   </div>
 </section>
 
-<section class="modes">
+<!-- ===== MODES ===== -->
+<section class="modes" id="modes">
   <div class="container">
-    <p class="section-eyebrow">Conversion</p>
-    <h2 class="section-title">Modes</h2>
-    <div class="modes-wrapper">
-      <table>
-        <thead>
-          <tr><th>Mode</th><th>Engine</th><th>Speed</th><th>Quality</th><th>GPU</th></tr>
-        </thead>
-        <tbody>
-          <tr><td><code>--mode fast</code></td><td>RF-DETR</td><td>Fast</td><td>Good</td><td>Not needed</td></tr>
-          <tr><td><code>--mode balanced</code></td><td>Marker + Torch</td><td>Moderate</td><td>Better</td><td>Optional</td></tr>
-          <tr><td><code>--mode quality</code></td><td>VLM (llama.cpp)</td><td>Slower</td><td>Best</td><td>Optional</td></tr>
-        </tbody>
-      </table>
+    <p class="section-label">Conversion</p>
+    <h2 class="section-heading">Pick the right mode for your documents</h2>
+    <p class="section-desc">Each mode trades speed for accuracy. All three run entirely on your machine.</p>
+
+    <div class="modes-grid">
+      <div class="mode-card">
+        <div class="mode-name">--mode fast</div>
+        <div class="mode-engine">RF-DETR engine</div>
+        <div class="mode-badges">
+          <span class="mode-badge">&#9889; Fast</span>
+          <span class="mode-badge">Good quality</span>
+          <span class="mode-badge gpu-no">No GPU needed</span>
+        </div>
+      </div>
+      <div class="mode-card recommended">
+        <div class="mode-name">--mode balanced</div>
+        <div class="mode-engine">Marker + Torch</div>
+        <div class="mode-badges">
+          <span class="mode-badge">Moderate speed</span>
+          <span class="mode-badge">Better quality</span>
+          <span class="mode-badge gpu-opt">GPU optional</span>
+        </div>
+      </div>
+      <div class="mode-card">
+        <div class="mode-name">--mode quality</div>
+        <div class="mode-engine">VLM (llama.cpp)</div>
+        <div class="mode-badges">
+          <span class="mode-badge">Slower</span>
+          <span class="mode-badge">Best quality</span>
+          <span class="mode-badge gpu-opt">GPU optional</span>
+        </div>
+      </div>
     </div>
   </div>
 </section>
 
+<!-- ===== FINAL CTA ===== -->
+<section class="final-cta">
+  <div class="container">
+    <h2>Ready to convert your first PDF?</h2>
+    <p>One command. No sign-up. No API key.</p>
+    <div class="final-cta-install" id="final-install" title="Click to copy">
+      <span class="prompt">$</span>
+      <code style="font-family:var(--font-mono);background:none;padding:0">curl -fsSL https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.sh | bash</code>
+    </div>
+    <div class="final-cta-links">
+      <a href="getting-started.html">Documentation &rarr;</a>
+      <a href="https://github.com/dramirezbe/sami-pdf2md-tool" target="_blank" rel="noopener">GitHub &rarr;</a>
+    </div>
+  </div>
+</section>
+
+<!-- ===== FOOTER ===== -->
 <footer>
   <div class="container">
-    MIT License &middot; <a href="https://github.com/dramirezbe/sami-pdf2md-tool" target="_blank" rel="noopener">dramirezbe/sami-pdf2md-tool</a>
+    <div class="footer-inner">
+      <span>MIT License · <a href="https://github.com/dramirezbe/sami-pdf2md-tool" target="_blank" rel="noopener">dramirezbe/sami-pdf2md-tool</a></span>
+      <a class="author-link" href="https://github.com/dramirezbe" target="_blank" rel="noopener">
+        <img src="https://github.com/dramirezbe.png?size=40" alt="dramirezbe" width="20" height="20" loading="lazy">
+        Built by dramirezbe
+      </a>
+    </div>
   </div>
 </footer>
 
 <script>
 (function() {
   var REPO = "dramirezbe/sami-pdf2md-tool";
+
+  // --- GitHub stars ---
+  fetch("https://api.github.com/repos/" + REPO)
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.stargazers_count !== undefined) {
+        var el = document.getElementById("gh-stars");
+        el.textContent = d.stargazers_count >= 1000
+          ? (d.stargazers_count / 1000).toFixed(1) + "k"
+          : d.stargazers_count;
+      }
+    }).catch(function() {});
+
+  // --- Downloads + version ---
   var meta = document.getElementById("download-meta");
   var dlWin = document.getElementById("dl-win");
   var dlDeb = document.getElementById("dl-deb");
   var dlLinux = document.getElementById("dl-linux");
   var dlMac = document.getElementById("dl-mac");
+  var versionBadge = document.getElementById("version-badge");
+  var versionText = document.getElementById("version-text");
 
   function detectOS() {
     var ua = navigator.userAgent || navigator.platform || "";
@@ -621,21 +1080,20 @@ footer a:hover { text-decoration: underline; }
     if (/Mac/i.test(ua)) return "mac";
     return "linux";
   }
-
   function enableBtn(btn, url) {
     btn.href = url;
     btn.classList.remove("disabled");
     btn.target = "_blank";
     btn.rel = "noopener";
   }
-
   function highlightPrimary(os) {
-    var map = { win: dlWin, linux: dlDeb, mac: dlMac };
-    var btn = map[os];
-    if (btn && !btn.classList.contains("disabled")) {
-      btn.classList.remove("btn-secondary");
-      btn.classList.add("btn-primary");
-    }
+    var btns = { win: [dlWin], linux: [dlDeb, dlLinux], mac: [dlMac] };
+    (btns[os] || []).forEach(function(btn) {
+      if (btn && !btn.classList.contains("disabled")) {
+        btn.classList.remove("btn-secondary");
+        btn.classList.add("btn-primary");
+      }
+    });
   }
 
   fetch("https://api.github.com/repos/" + REPO + "/releases?per_page=10")
@@ -645,38 +1103,33 @@ footer a:hover { text-decoration: underline; }
       if (!release) release = releases.find(function(r) { return !r.draft; });
       if (!release && releases.length) release = releases[0];
       if (!release) {
-        meta.textContent = "No releases found yet.";
+        versionText.textContent = "Pre-release";
+        meta.textContent = "";
         return;
       }
-
       var assets = release.assets || [];
       var version = release.tag_name;
+      versionText.textContent = version + " released";
+      versionBadge.href = release.html_url;
 
       assets.forEach(function(a) {
         var name = a.name.toLowerCase();
-        if (name.endsWith("-setup.exe") || (name.endsWith(".exe") && name.includes("win"))) {
-          enableBtn(dlWin, a.browser_download_url);
-        } else if (name.endsWith(".deb")) {
-          enableBtn(dlDeb, a.browser_download_url);
-        } else if (name.endsWith(".appimage")) {
-          enableBtn(dlLinux, a.browser_download_url);
-        } else if (name.endsWith(".dmg")) {
-          enableBtn(dlMac, a.browser_download_url);
-        }
+        if (name.endsWith("-setup.exe") || (name.endsWith(".exe") && name.includes("win"))) enableBtn(dlWin, a.browser_download_url);
+        else if (name.endsWith(".deb")) enableBtn(dlDeb, a.browser_download_url);
+        else if (name.endsWith(".appimage")) enableBtn(dlLinux, a.browser_download_url);
+        else if (name.endsWith(".dmg")) enableBtn(dlMac, a.browser_download_url);
       });
-
       if (dlMac.classList.contains("disabled")) {
         dlMac.querySelector("span").textContent = "macOS (coming soon)";
       }
-
       highlightPrimary(detectOS());
       meta.innerHTML = version + " &middot; <a href=\"" + release.html_url + "\" target=\"_blank\" rel=\"noopener\">Release notes</a>";
-    })
-    .catch(function() {
-      meta.textContent = "Could not load releases. Visit GitHub for downloads.";
+    }).catch(function() {
+      versionText.textContent = "Open source";
+      meta.textContent = "";
     });
 
-  // Tab switching
+  // --- Tabs ---
   document.querySelectorAll(".install-tab").forEach(function(tab) {
     tab.addEventListener("click", function() {
       document.querySelectorAll(".install-tab").forEach(function(t) { t.classList.remove("active"); });
@@ -686,23 +1139,27 @@ footer a:hover { text-decoration: underline; }
     });
   });
 
-  // Copy buttons
+  // --- Copy buttons ---
   var checkSvg = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8.5l3 3 7-7"/></svg>';
   var copySvg = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M5 11H3.5A1.5 1.5 0 012 9.5v-7A1.5 1.5 0 013.5 1h7A1.5 1.5 0 0112 2.5V5"/></svg>';
   document.querySelectorAll(".copy-btn").forEach(function(btn) {
     btn.addEventListener("click", function() {
       var cmd = btn.getAttribute("data-cmd");
-      try {
-        navigator.clipboard.writeText(cmd).then(function() {
-          btn.innerHTML = checkSvg;
-          btn.classList.add("copied");
-          setTimeout(function() {
-            btn.innerHTML = copySvg;
-            btn.classList.remove("copied");
-          }, 2000);
-        });
-      } catch(e) {}
+      navigator.clipboard.writeText(cmd).then(function() {
+        btn.innerHTML = checkSvg;
+        btn.classList.add("copied");
+        setTimeout(function() { btn.innerHTML = copySvg; btn.classList.remove("copied"); }, 2000);
+      }).catch(function() {});
     });
+  });
+
+  // --- Final CTA copy ---
+  var finalInstall = document.getElementById("final-install");
+  finalInstall.addEventListener("click", function() {
+    navigator.clipboard.writeText("curl -fsSL https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.sh | bash").then(function() {
+      finalInstall.style.borderColor = "var(--success)";
+      setTimeout(function() { finalInstall.style.borderColor = ""; }, 2000);
+    }).catch(function() {});
   });
 })();
 </script>
