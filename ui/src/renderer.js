@@ -21,6 +21,8 @@ const state = {
   runStartedAt: null,
   stageStartedAt: null,
   stage: null,
+  stageKey: null,
+  percent: null,
   device: null,
   waiting: false,
   cancelling: false,
@@ -401,14 +403,34 @@ function showScreen(screen) {
 function translateStage(raw) {
   const stage = String(raw || "");
   const lower = stage.toLowerCase();
+  const step = lower.match(/^\[(\d+)\/(\d+)\]/);
+  if (step) return t("stage.refine", { current: step[1], total: step[2] });
+  if (/high-res/.test(lower)) return t("stage.render");
+  if (/extracting text/.test(lower)) return t("stage.extract");
+  if (/stripping references/.test(lower)) return t("stage.references");
+  if (/writing \d+ figure/.test(lower)) return t("stage.figures");
   if (/reading pdf/.test(lower)) return t("stage.read");
-  if (lower.startsWith("pages:")) return `${t("stage.page")}: ${stage.split(":").slice(1).join(":").trim()}`;
-  if (/building page structure/.test(lower)) return t("stage.structure");
+  if (/building page structure|structure building/.test(lower)) return t("stage.structure");
   if (/layout detection/.test(lower)) return t("stage.layout");
   if (/line extraction/.test(lower)) return t("stage.line");
-  if (/ocr/.test(lower)) return t("stage.ocr");
+  if (/^ocr \(skipped/.test(lower)) return t("stage.ocrSkipped");
+  if (/^ocr \(/.test(lower)) return t("stage.ocr");
   if (/markdown/.test(lower)) return t("stage.markdown");
   return stage || t("stage.unknown");
+}
+
+function describeProgress(data) {
+  if (data.phase === "pages") return t("stage.pageProgress", { completed: data.completed, total: data.total });
+  if (!String(data.phase || "").startsWith("model_")) return translateStage(data.stage);
+  const parts = [t(`stage.${data.phase}`)];
+  if (data.total > 0) {
+    const key = data.unit === "block" ? "stage.blocksDone" : "stage.pagesDone";
+    parts.push(t(key, { completed: data.completed, total: data.total }));
+  }
+  const format = (value) => new Intl.NumberFormat(state.locale).format(value);
+  if (data.tokens > 0) parts.push(t("stage.tokens", { tokens: format(data.tokens) }));
+  if (data.tokens_per_second > 0) parts.push(t("stage.rate", { rate: format(Math.round(data.tokens_per_second)) }));
+  return parts.join(" · ");
 }
 
 function renderRunState(activity) {
@@ -433,7 +455,9 @@ function renderRunState(activity) {
   }
 
   const stageTrack = byId("stage-track");
-  const progressEvent = state.lastProgress;
+  // The file percentage is an estimate; older CLIs only send item counts.
+  const progressEvent = state.percent === null ? state.lastProgress : { completed: state.percent, total: 100 };
+  setText("file-percent", state.percent === null ? "" : `~${state.percent}%`);
   if (progressEvent?.total > 0 && progressEvent.completed >= 0) {
     stageTrack.classList.remove("indeterminate");
     stageTrack.classList.add("measured");
@@ -475,7 +499,6 @@ function onRunnerEvent(event) {
   if (!event || event.protocol_version !== 1) return;
   state.lastEventAt = Date.now();
   state.waiting = false;
-  state.lastProgress = null;
   if (event.event === "run_started") {
     state.runStartedAt = state.runStartedAt || Date.now();
     state.device = event.data.requested_device === "auto" ? (selectedModeHealth()?.device || "cpu") : event.data.requested_device;
@@ -488,22 +511,30 @@ function onRunnerEvent(event) {
   } else if (event.event === "job_started") {
     state.activeFile = event.data.input;
     state.stage = t("stage.waiting");
+    state.stageKey = null;
+    state.percent = null;
     state.stageStartedAt = Date.now();
     state.device = event.data.device || state.device;
     state.lastProgress = null;
     showScreen("run");
     renderRunState();
   } else if (event.event === "job_progress") {
-    const stage = translateStage(event.data.stage);
-    if (stage !== state.stage) state.stageStartedAt = Date.now();
+    const stage = describeProgress(event.data);
+    // Live counters change the text, so the stage clock follows the phase.
+    const stageKey = event.data.phase || stage;
+    if (stageKey !== state.stageKey) state.stageStartedAt = Date.now();
+    state.stageKey = stageKey;
     state.stage = stage;
-    state.lastProgress = Number.isFinite(event.data.completed) && Number.isFinite(event.data.total)
+    if (Number.isFinite(event.data.percent)) state.percent = Math.max(state.percent ?? 0, event.data.percent);
+    // Keep the bar moving until there is a completed item to measure.
+    state.lastProgress = event.data.completed > 0 && Number.isFinite(event.data.total)
       ? { completed: event.data.completed, total: event.data.total }
       : null;
     renderRunState();
   } else if (event.event === "job_retrying") {
     state.device = "cpu";
     state.stage = t("run.retrying");
+    state.percent = null;
     state.stageStartedAt = Date.now();
     state.lastProgress = null;
     renderRunState();
@@ -517,6 +548,7 @@ function onRunnerEvent(event) {
       state.completed += 1;
       state.activeFile = null;
       state.lastProgress = null;
+      state.percent = null;
     }
     renderRunState();
   } else if (event.event === "run_finished") {
@@ -532,6 +564,7 @@ function resetRun() {
   state.results = [];
   state.issues = [];
   state.total = null;
+  state.percent = null;
   state.completed = 0;
   state.runStartedAt = Date.now();
   state.stageStartedAt = Date.now();

@@ -135,7 +135,9 @@ h2, h3, p { overflow-wrap: anywhere; }
 .spinner { width: 12px; height: 12px; flex: none; border: 1.5px solid var(--line); border-top-color: var(--sami-brand); border-radius: 50%; animation: spin .9s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .document-elapsed { color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
-.stage-progress-track { height: 5px; margin-left: 50px; }
+.file-percent { color: var(--sami-text-primary); font-size: 13px; font-variant-numeric: tabular-nums; }
+.stage-progress-track { height: 7px; margin-left: 50px; }
+.stage-progress-fill { transition: width 1.2s linear; }
 .stage-progress-track.indeterminate .stage-progress-fill { width: 27%; background: var(--accent); animation: travel 1.8s ease-in-out infinite; }
 .stage-progress-track.measured .stage-progress-fill { background: var(--sami-brand); }
 .waiting-notice { margin: 13px 0 0 50px; padding: 9px 11px; border-radius: 7px; background: var(--sami-warning-subtle); color: var(--muted); font-size: 10px; line-height: 1.45; }
