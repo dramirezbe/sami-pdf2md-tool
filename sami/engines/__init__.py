@@ -38,12 +38,13 @@ def convert(
     stage_done_logger: Callable[..., Any] | None = None,
     converter: Any | None = None,
     app_home: Any | None = None,
+    page_logger: Callable[[int, int], None] | None = None,
 ) -> EngineResult:
     """Import and run the adapter selected by the request's public mode."""
     selection = select_engine(request.mode)
     adapter = import_module(selection.module)
     if selection.engine == "fast":
-        return adapter.convert(request)
+        return adapter.convert(request, on_page=page_logger)
     if cpu_config is None or logger is None or stage_logger is None or stage_done_logger is None:
         raise ValueError("Marker conversion requires CPU configuration and progress callbacks")
     return adapter.convert(

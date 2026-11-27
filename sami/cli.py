@@ -24,12 +24,14 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import functools
 import io
 import os
 import re
 import shutil
 import sys
 import tempfile
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -44,8 +46,10 @@ from sami.contracts import (
     RunResult,
     REQUESTED_DEVICES,
 )
+from sami.estimate import FileProgress, ticking
 from sami.events import EventSequencer, write_json_line
 from sami.outputs import claim_stem, make_staging_dir, prepend_frontmatter, publish
+from sami.progress import PHASE_LABELS, monitor_model
 
 VALID_MODES = ("fast", "balanced", "quality")
 
@@ -142,6 +146,48 @@ def _marker_stage_logger(name: str, stage: str, end: str = "\n", flush: bool = T
 
 def _marker_stage_done(elapsed: float) -> None:
     log_stage_done(elapsed)
+
+
+def _model_progress_reporter(name: str, tracker):
+    """Show model progress on the terminal and publish changes as events."""
+    started = time.monotonic()
+    live = sys.stdout.isatty()
+    shown = published = None
+    open_line = False
+
+    def report(snapshot: dict) -> None:
+        nonlocal started, shown, published, open_line
+        phase, completed, total = snapshot["phase"], snapshot["completed"], snapshot["total"]
+        label = PHASE_LABELS[phase]
+        if snapshot != published:
+            published = snapshot
+            tracker.model({"stage": label, **snapshot})
+        if _QUIET or _JSON_MODE:
+            return
+        if shown is None or shown[0] == "model_done":
+            started = time.monotonic()
+            print()
+            open_line = True
+        parts = [label]
+        if total:
+            parts.append(f"{completed}/{total} {snapshot['unit']}s")
+        if snapshot["tokens"]:
+            parts.append(f"{snapshot['tokens']} tokens")
+        if snapshot["tokens_per_second"]:
+            parts.append(f"{snapshot['tokens_per_second']:.0f} t/s")
+        parts.append(f"~{tracker.percent}%")
+        minutes, seconds = divmod(int(time.monotonic() - started), 60)
+        parts.append(f"{minutes:02}:{seconds:02}")
+        line = f"  [{name}]   " + " · ".join(parts)
+        if live:
+            done = phase == "model_done"
+            print(f"\r\033[K{line}", end="\n" if done else "", flush=True)
+            open_line = not done
+        elif shown != (phase, completed, total):
+            print(line, flush=True)
+        shown = (phase, completed, total)
+
+    return report
 
 
 def _fmt_size(nbytes: int) -> str:
@@ -395,12 +441,16 @@ def _main(argv: list[str] | None, runtime: contextlib.ExitStack) -> int:
     start = time.monotonic()
     pdfs, issues = discover_inputs(args.pdf, recursive=args.recursive)
 
+    # Progress events also come from background threads.
+    emit_lock = threading.RLock()
+
     def emit(event: str, data: dict, *, job_id: str | None = None, attempt: int | None = None) -> None:
         if args.json:
-            write_json_line(
-                event_stdout,
-                sequencer.create(event, data, job_id=job_id, attempt=attempt).to_json_line(),
-            )
+            with emit_lock:
+                write_json_line(
+                    event_stdout,
+                    sequencer.create(event, data, job_id=job_id, attempt=attempt).to_json_line(),
+                )
 
     def finish(results, exit_code: int) -> int:
         run = RunResult(run_id=run_id, results=tuple(results), exit_code=exit_code)
@@ -560,6 +610,7 @@ def _convert_batch(args, jobs, results, control, engines, claims, emit):
             control.check()
             control.active = (job_id, device, attempt, started)
             staging = None
+            tracker = None
             initializing = False
             converting = False
             try:
@@ -569,8 +620,10 @@ def _convert_batch(args, jobs, results, control, engines, claims, emit):
 
                 def progress(stage):
                     control.check()
-                    emit("job_progress", {"stage": stage.strip(), "completed": None, "total": None},
-                         job_id=job_id, attempt=attempt)
+                    if stage.startswith("  "):
+                        return  # Indented lines are summaries, not new stages.
+                    if tracker is not None:
+                        tracker.stage(stage.strip())
 
                 _ACTIVE_PROGRESS_CALLBACK = progress
                 if selection.engine == "marker" and converter is None:
@@ -607,14 +660,28 @@ def _convert_batch(args, jobs, results, control, engines, claims, emit):
                     device=device, attempt=attempt,
                 )
                 converting = True
-                with contextlib.redirect_stdout(sys.stderr if args.json else sys.stdout):
+                tracker = FileProgress(
+                    functools.partial(emit, "job_progress", job_id=job_id, attempt=attempt),
+                    pages=_page_count(pdf), mode=args.mode, device=device,
+                    history=app_home / "cache" / "progress.json", cancel_event=control.cancelled,
+                )
+                monitor = contextlib.nullcontext()
+                if selection.engine == "marker":
+                    monitor = monitor_model(
+                        _model_progress_reporter(pdf.name, tracker), cancel_event=control.cancelled,
+                    )
+                with ticking(tracker), monitor, contextlib.redirect_stdout(
+                    sys.stderr if args.json else sys.stdout
+                ):
                     result = convert_engine(
                         request, cpu_config=cpu_config if selection.engine == "marker" else None,
                         logger=log if selection.engine == "marker" else None,
                         stage_logger=_marker_stage_logger if selection.engine == "marker" else None,
                         stage_done_logger=_marker_stage_done if selection.engine == "marker" else None,
                         converter=converter, app_home=app_home,
+                        page_logger=tracker.pages_done if selection.engine == "fast" else None,
                     )
+                tracker.save()
                 converting = False
                 control.check()
                 for warning in (*result.warnings, *result.gaps):

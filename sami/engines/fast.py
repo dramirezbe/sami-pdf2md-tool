@@ -160,7 +160,7 @@ def run_ocr_on_page(page, i):
         return "", 0.0
 
 # Extracts text, headings, tables, and images; applies OCR and records risks and gaps.
-def extract_pages(doc, src, opt, asset_dir, stem):
+def extract_pages(doc, src, opt, asset_dir, stem, on_page=None):
     pages=[]; all_risks=[]; transform=[]; gap_entries=[]; image_count=0; tables_count=0; title=None
     with pdfplumber.open(src) as plumber:
         for i in range(min(doc.page_count,opt.max_pages or doc.page_count)):
@@ -309,8 +309,9 @@ def extract_pages(doc, src, opt, asset_dir, stem):
             # Accumulates page results and extraction evidence.
             gap_entries.extend(f'page {i+1}: {x}' for x in page_gaps)
             pages.append({'body':'\n\n'.join(parts),'source':norm(text),'gaps':page_gaps,'risk':page_risks,'ocr_conf':ocr_conf,'prose_reference':prose_reference,'tables':table_checks,'figures_excluded':figure_excluded})
+            if on_page: on_page(i+1, min(doc.page_count,opt.max_pages or doc.page_count))
     return pages, title, gap_entries,all_risks,transform,image_count,tables_count
-def convert(request: ConversionRequest) -> EngineResult:
+def convert(request: ConversionRequest, on_page=None) -> EngineResult:
     """Convert with the reference batch's effective high/no-OCR/no-images profile."""
     options = Options(
         quality="high", ocr=False, images=False, markers=True,
@@ -324,6 +325,7 @@ def convert(request: ConversionRequest) -> EngineResult:
                 document, request.input_path, options,
                 request.staging_dir / "assets" / request.input_path.stem,
                 request.input_path.stem,
+                on_page=on_page,
             )
     except InputError:
         raise
