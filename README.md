@@ -199,7 +199,3 @@ bash setup.sh uninstall
 
 - Python >= 3.11, < 3.14 (Pillow/marker-pdf compatibility)
 - Linux, macOS, or Windows PowerShell 5.1+
-
-## License
-
-MIT

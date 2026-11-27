@@ -7,7 +7,6 @@ name = "sami-pdf2md-tool"
 dynamic = ["version"]
 description = "Smart Automated Markdown Interpreter — convert PDFs to Markdown with figures"
 requires-python = ">=3.11,<3.14"
-license = "MIT"
 dependencies = [
     "marker-pdf==2.0.0",
     "pdfplumber==0.11.9",

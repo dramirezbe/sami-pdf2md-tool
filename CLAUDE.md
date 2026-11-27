@@ -1,6 +1,6 @@
 # sami — Smart Automated Markdown Interpreter
 
-Standalone PDF-to-Markdown converter using Marker. Opensource tool, local, keyless, no API needed.
+Standalone PDF-to-Markdown converter using Marker. Local, keyless tool, no API needed.
 
 ## Project Structure
 

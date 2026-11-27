@@ -9,7 +9,6 @@
     "email": "dramirezbe@unal.edu.co"
   },
   "homepage": "https://dramirezbe.github.io/sami-pdf2md-tool/",
-  "license": "MIT",
   "private": true,
   "type": "module",
   "main": "src/main.js",
