@@ -256,12 +256,18 @@ nav .container {
   text-wrap: balance;
 }
 
-/* Author pill */
+/* Author pills */
+.authors {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 32px;
+}
 .author {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 32px;
   padding: 8px 16px 8px 8px;
   border: 1px solid var(--border);
   border-radius: 99px;
@@ -723,11 +729,8 @@ nav .container {
 /* ===== FOOTER ===== */
 footer {
   border-top: 1px solid var(--border);
-  padding: 20px 0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.75rem;
+  padding: 32px 0;
+  font-size: 0.8125rem;
   color: var(--text-tertiary);
 }
 footer a { color: var(--brand); text-decoration: none; }
@@ -736,7 +739,8 @@ footer .footer-inner {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  width: 100%;
+  flex-wrap: wrap;
+  gap: 16px 40px;
 }
 footer .author-link {
   display: inline-flex;
@@ -764,7 +768,7 @@ footer .author-link img {
   .nav-brand-text p { display: none; }
   .downloads { flex-direction: column; align-items: center; }
   .downloads .btn { width: 100%; max-width: 320px; }
-  footer .footer-inner { flex-direction: column; gap: 8px; text-align: center; }
+  footer .footer-inner { flex-direction: column; gap: 16px; text-align: center; }
 }
 @media (min-width: 769px) and (max-width: 960px) {
   .features-grid { grid-template-columns: repeat(2, 1fr); }
@@ -810,10 +814,16 @@ footer .author-link img {
     <h2>PDF to Markdown,<br><span class="gradient">entirely on your machine</span></h2>
     <p class="lead">SAMI converts PDFs into clean, structured Markdown with extracted figures. No uploads, no API keys, no cloud — just one command.</p>
 
-    <a class="author" href="https://github.com/dramirezbe" target="_blank" rel="noopener">
-      <img src="https://github.com/dramirezbe.png?size=56" alt="dramirezbe" width="28" height="28">
-      Built by dramirezbe
-    </a>
+    <div class="authors">
+      <a class="author" href="https://lia.manizales.unal.edu.co/" target="_blank" rel="noopener">
+        <img src="https://github.com/LIAUNAL.png?size=56" alt="" width="28" height="28">
+        Made by Laboratorio de Inteligencia Artificial UNAL
+      </a>
+      <a class="author" href="https://github.com/dramirezbe" target="_blank" rel="noopener">
+        <img src="https://github.com/dramirezbe.png?size=56" alt="" width="28" height="28">
+        Questions: dramirezbe
+      </a>
+    </div>
 
     <div class="downloads" id="downloads">
       <a class="btn btn-secondary disabled" id="dl-win" href="#">
@@ -937,10 +947,6 @@ footer .author-link img {
 <section class="trust">
   <div class="container">
     <div class="trust-items">
-      <div class="trust-item">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 2l2.5 5 5.5.8-4 3.9.9 5.3-4.9-2.6-4.9 2.6.9-5.3-4-3.9 5.5-.8z"/></svg>
-        <span>Open source · <strong>MIT License</strong></span>
-      </div>
       <div class="trust-item">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="14" height="14" rx="2"/><path d="M7 10l2 2 4-4"/></svg>
         <span><strong>100% local</strong> · no data leaves your machine</span>
@@ -1066,11 +1072,12 @@ footer .author-link img {
 <footer>
   <div class="container">
     <div class="footer-inner">
-      <span>MIT License · <a href="https://github.com/dramirezbe/sami-pdf2md-tool" target="_blank" rel="noopener">dramirezbe/sami-pdf2md-tool</a></span>
-      <a class="author-link" href="https://github.com/dramirezbe" target="_blank" rel="noopener">
-        <img src="https://github.com/dramirezbe.png?size=40" alt="dramirezbe" width="20" height="20" loading="lazy">
-        Built by dramirezbe
+      <span><a href="https://github.com/dramirezbe/sami-pdf2md-tool" target="_blank" rel="noopener">dramirezbe/sami-pdf2md-tool</a></span>
+      <a class="author-link" href="https://lia.manizales.unal.edu.co/" target="_blank" rel="noopener">
+        <img src="https://github.com/LIAUNAL.png?size=40" alt="" width="20" height="20" loading="lazy">
+        Made by Laboratorio de Inteligencia Artificial UNAL
       </a>
+      <span>Questions: <a href="https://github.com/dramirezbe" target="_blank" rel="noopener">dramirezbe</a></span>
     </div>
   </div>
 </footer>
@@ -1151,7 +1158,7 @@ footer .author-link img {
       highlightPrimary(detectOS());
       meta.innerHTML = version + " &middot; <a href=\"" + release.html_url + "\" target=\"_blank\" rel=\"noopener\">Release notes</a>";
     }).catch(function() {
-      versionText.textContent = "Open source";
+      versionText.textContent = "Latest release";
       meta.textContent = "";
     });
 
