@@ -12,15 +12,6 @@ param(
 $ErrorActionPreference = 'Stop'
 $repository = 'dramirezbe/sami-pdf2md-tool'
 
-function Get-LatestUiVersion {
-    try {
-        $release = Invoke-RestMethod -UseBasicParsing -Uri "https://api.github.com/repos/$repository/releases/latest" -TimeoutSec 20
-        if ($release.tag_name -match '^v(.+)$') { return $Matches[1] }
-    } catch {}
-    throw 'Could not determine the latest SAMI release. Check https://github.com/dramirezbe/sami-pdf2md-tool/releases'
-}
-$uiVersion = Get-LatestUiVersion
-
 function Get-SamiArchitecture {
     try { $architecture = [string][System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture }
     catch { $architecture = '' }
@@ -39,19 +30,11 @@ function Ensure-Uv {
     $null = Get-Command uv -ErrorAction Stop
 }
 
+# CLIs up to 0.3.7 pass -UpgradePython with a git -Source. They now get the latest
+# release too, so only the package index is still honored.
 if ($UpgradePython) {
-    if (-not $Source) {
-        throw 'Run sami upgrade from the installed CLI.'
-    }
-    $upgradeArgs = @('pip', 'install', '--python', $UpgradePython, '--upgrade-package', 'sami-pdf2md-tool')
-    if ($UpgradeIndex) { $upgradeArgs += @('--index', $UpgradeIndex) }
-    Write-Host 'Updating SAMI in its existing environment...'
-    uv @upgradeArgs $Source
-    if ($LASTEXITCODE -ne 0) { throw "SAMI upgrade failed (exit $LASTEXITCODE)." }
-    & $UpgradePython -I -m sami.cli setup --register-only
-    if ($LASTEXITCODE -ne 0) { throw "SAMI launcher registration failed (exit $LASTEXITCODE)." }
-    Write-Host 'SAMI upgraded.'
-    return
+    $env:SAMI_UPGRADE_INDEX = $UpgradeIndex
+    $Source = ''
 }
 
 $temporaryDirectory = Join-Path ([System.IO.Path]::GetTempPath()) ("sami-install-" + [guid]::NewGuid().ToString('N'))
@@ -90,19 +73,16 @@ try {
         return
     }
 
-    $helper = $null
-    if ($PSScriptRoot) {
-        foreach ($relativePath in @('packaging\windows\cli-install.ps1', 'cli-install-windows.ps1')) {
-            $candidate = Join-Path $PSScriptRoot $relativePath
-            if (Test-Path -LiteralPath $candidate -PathType Leaf) { $helper = $candidate; break }
-        }
-    }
-    if (-not $helper) {
-        $helper = Join-Path $temporaryDirectory 'cli-install.ps1'
-        $helperUrl = "https://raw.githubusercontent.com/$repository/main/packaging/windows/cli-install.ps1"
-        Write-Host 'Fetching the shared CLI installation steps...'
-        Invoke-WebRequest -UseBasicParsing -Uri $helperUrl -OutFile $helper -TimeoutSec 60
-    }
+    # The latest release publishes this helper with its version and checksum stamped in.
+    # The copy under packaging\ is only the template, so it is never used here.
+    $helper = Join-Path $temporaryDirectory 'cli-install.ps1'
+    $helperUrl = "https://github.com/$repository/releases/latest/download/cli-install-windows.ps1"
+    Write-Host 'Fetching the installation steps from the latest release...'
+    Invoke-WebRequest -UseBasicParsing -Uri $helperUrl -OutFile $helper -TimeoutSec 60
+    # The desktop app must match the CLI version exactly, so both come from the helper.
+    $stamped = Select-String -LiteralPath $helper -Pattern "^\$cliVersion = '([^']+)'" | Select-Object -First 1
+    if (-not $stamped) { throw 'The latest release installer does not declare a SAMI version.' }
+    $uiVersion = $stamped.Matches[0].Groups[1].Value
 
     if ($Component -in @('cli', 'all')) {
         & $helper -Prepare

@@ -114,7 +114,9 @@ install_cli() {
         [[ "$actual_wheel_hash" == "$CLI_SHA256" ]] || fail 'SAMI CLI wheel checksum verification failed.'
         if [[ -x "$cli_python" ]]; then
             info 'Updating the registered SAMI environment...'
-            "$uv" pip install --python "$cli_python" --upgrade "$wheel"
+            install_args=(pip install --python "$cli_python" --upgrade-package sami-pdf2md-tool)
+            [[ -z "${SAMI_UPGRADE_INDEX:-}" ]] || install_args+=(--index "$SAMI_UPGRADE_INDEX")
+            "$uv" "${install_args[@]}" "$wheel"
             if [[ ! -x "$executable" ]]; then executable="$(dirname "$cli_python")/sami"; fi
         else
             info 'Installing SAMI CLI...'
@@ -169,7 +171,7 @@ install_ui() {
             [[ "$expected" =~ ^[[:xdigit:]]{64}$ ]] || fail 'Could not find the AppImage checksum in the release.'
             actual="$(sha256sum "$temporary_dir/$asset" | cut -d' ' -f1)"
             [[ "$actual" == "$expected" ]] || fail 'AppImage checksum verification failed.'
-            curl -fsSL --connect-timeout 15 --max-time 60 "https://raw.githubusercontent.com/$REPOSITORY/refs/tags/v$UI_VERSION/ui/assets/icons/sami-icon-512.png" -o "$temporary_dir/icon.png"
+            curl -fsSL --connect-timeout 15 --max-time 60 "$release_dir/sami-icon-512.png" -o "$temporary_dir/icon.png"
             staged="$install_dir/.SAMI.AppImage.$$"
             install -m 755 "$temporary_dir/$asset" "$staged"
             mv -f "$staged" "$appimage"

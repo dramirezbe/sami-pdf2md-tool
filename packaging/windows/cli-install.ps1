@@ -84,7 +84,9 @@ try {
 
     if ($python -and (Test-Path -LiteralPath $python)) {
         Write-Step 'Updating the registered Python environment...'
-        & $uv pip install --python $python --upgrade $wheel
+        $updateArguments = @('pip', 'install', '--python', $python, '--upgrade-package', 'sami-pdf2md-tool')
+        if ($env:SAMI_UPGRADE_INDEX) { $updateArguments += @('--index', $env:SAMI_UPGRADE_INDEX) }
+        & $uv @updateArguments $wheel
         if ($LASTEXITCODE -ne 0) { throw "SAMI CLI package installation failed with exit code $LASTEXITCODE." }
     } else {
         $toolDirectory = & $uv tool dir

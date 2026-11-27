@@ -16,10 +16,10 @@ Standalone PDF-to-Markdown converter using Marker. Opensource tool, local, keyle
 
 ```bash
 # One-line (end user, no clone needed):
-curl -fsSL https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.sh | bash
+curl -fsSL https://github.com/dramirezbe/sami-pdf2md-tool/releases/latest/download/install.sh | bash
 
 # Update to latest version:
-curl -fsSL https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.sh | bash -s update
+curl -fsSL https://github.com/dramirezbe/sami-pdf2md-tool/releases/latest/download/install.sh | bash -s update
 
 # From clone (dev):
 uv tool install --python 3.12 -e .

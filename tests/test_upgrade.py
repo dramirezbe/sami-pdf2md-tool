@@ -10,10 +10,10 @@ from sami import upgrade
 class UpgradeTests(unittest.TestCase):
     def test_cli_dispatches_upgrade_without_conversion(self):
         with patch("sami.upgrade.upgrade_command", return_value=7) as command:
-            self.assertEqual(main(["upgrade", "--ref", "test/ref"]), 7)
-        command.assert_called_once_with(["--ref", "test/ref"])
+            self.assertEqual(main(["upgrade", "--help"]), 7)
+        command.assert_called_once_with(["--help"])
 
-    def test_linux_reuses_current_python_and_installed_git_ref(self):
+    def test_linux_runs_the_latest_release_installer(self):
         installed = {"vcs_info": {"requested_revision": "fix/windows"}}
         with (
             patch.object(upgrade, "_installation", return_value=installed),
@@ -30,9 +30,7 @@ class UpgradeTests(unittest.TestCase):
         env = run.call_args.kwargs["env"]
         self.assertEqual(command[:2], ["bash", "-c"])
         self.assertIn("curl -fsSL", command[2])
-        self.assertTrue(env["SAMI_UPGRADE_SCRIPT"].endswith("/fix/windows/install.sh"))
-        self.assertTrue(env["SAMI_UPGRADE_SOURCE"].endswith(".git@fix/windows"))
-        self.assertEqual(env["SAMI_UPGRADE_PYTHON"], upgrade.sys.executable)
+        self.assertTrue(env["SAMI_UPGRADE_SCRIPT"].endswith("/releases/latest/download/install.sh"))
         self.assertEqual(env["SAMI_UPGRADE_INDEX"], "https://download.pytorch.org/whl/cu132")
 
     def test_windows_starts_irm_in_new_process_group_and_passes_launcher_pids(self):
@@ -47,7 +45,7 @@ class UpgradeTests(unittest.TestCase):
             patch.object(upgrade.subprocess, "Popen") as start,
             patch("builtins.print"),
         ):
-            self.assertEqual(upgrade.upgrade_command(["--ref", "next"]), 0)
+            self.assertEqual(upgrade.upgrade_command([]), 0)
 
         command, = start.call_args.args
         options = start.call_args.kwargs
@@ -56,4 +54,4 @@ class UpgradeTests(unittest.TestCase):
         self.assertIn("Wait-Process", command[-1])
         self.assertEqual(options["creationflags"], 512)
         self.assertEqual(options["env"]["SAMI_UPGRADE_WAIT_FOR"], "100,200")
-        self.assertTrue(options["env"]["SAMI_UPGRADE_SCRIPT"].endswith("/next/install.ps1"))
+        self.assertTrue(options["env"]["SAMI_UPGRADE_SCRIPT"].endswith("/releases/latest/download/install.ps1"))

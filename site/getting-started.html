@@ -305,9 +305,9 @@ th { font-weight: 600; font-size: 0.6875rem; text-transform: uppercase; letter-s
 
 <h2 id="install">Install</h2>
 <h3>Linux / macOS</h3>
-<pre><code>curl -fsSL https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.sh | bash</code></pre>
+<pre><code>curl -fsSL https://github.com/dramirezbe/sami-pdf2md-tool/releases/latest/download/install.sh | bash</code></pre>
 <h3>Windows (PowerShell)</h3>
-<pre><code>irm https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.ps1 | iex</code></pre>
+<pre><code>irm https://github.com/dramirezbe/sami-pdf2md-tool/releases/latest/download/install.ps1 | iex</code></pre>
 <h3>From source (developers)</h3>
 <pre><code>git clone https://github.com/dramirezbe/sami-pdf2md-tool.git
 cd sami-pdf2md-tool
@@ -396,17 +396,8 @@ uv tool install --python 3.12 -e .</code></pre>
 </div>
 
 <h2 id="upgrade">sami upgrade</h2>
-<p>Update SAMI in its current environment.</p>
+<p>Update the CLI and the desktop app to the latest release.</p>
 <pre><code>sami upgrade</code></pre>
-<pre><code>sami upgrade --ref v0.4.0</code></pre>
-<div class="table-wrap">
-<table>
-<thead><tr><th>Flag</th><th>Description</th></tr></thead>
-<tbody>
-<tr><td><code>--ref REF</code></td><td>Git branch, tag, or commit to upgrade to. Defaults to the installed ref or <code>main</code>.</td></tr>
-</tbody>
-</table>
-</div>
 
 <h2 id="output-structure">Output structure</h2>
 <p>By default, each PDF produces a subfolder with the same name:</p>
@@ -485,9 +476,6 @@ sami paper.pdf --device rocm    # force ROCm (AMD)</code></pre>
 <pre><code>sami paper.pdf --json 2>/dev/null | jq '.event'</code></pre>
 <h3>Check installation health</h3>
 <pre><code>sami health --json | jq '.modes'</code></pre>
-<h3>Upgrade to a specific version</h3>
-<pre><code>sami upgrade --ref v0.4.0</code></pre>
-
 </main>
 </div>
 

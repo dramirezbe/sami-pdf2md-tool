@@ -5,25 +5,16 @@ set -euo pipefail
 REPOSITORY=dramirezbe/sami-pdf2md-tool
 ACTION="${1:-install}"
 
+# CLIs up to 0.3.7 run `upgrade <python> <git source> <index>`. They now get the
+# latest release too, so only the package index is still honored.
 if [[ "$ACTION" == "upgrade" ]]; then
-    python="${2:-}"
-    source="${3:-}"
-    index="${4:-}"
-    [[ -n "$python" && -n "$source" ]] || { echo '[sami] ERROR: Run sami upgrade from the installed CLI.' >&2; exit 1; }
-    args=(pip install --python "$python" --upgrade-package sami-pdf2md-tool)
-    [[ -z "$index" ]] || args+=(--index "$index")
-    echo '[sami] Updating SAMI in its existing environment...'
-    uv "${args[@]}" "$source"
-    "$python" -I -m sami.cli setup --register-only
-    echo '[sami] SAMI upgraded.'
-    exit 0
+    export SAMI_UPGRADE_INDEX="${4:-}"
+    set -- update
+    ACTION=update
 fi
 
 component=all
-if [[ "$ACTION" == "update" ]]; then
-    component=cli
-    shift
-elif [[ "$ACTION" == "install" && $# -gt 0 ]]; then
+if [[ ( "$ACTION" == "install" || "$ACTION" == "update" ) && $# -gt 0 ]]; then
     shift
 fi
 while (($#)); do
@@ -44,20 +35,12 @@ while (($#)); do
     esac
 done
 
-helper=
-if [[ -n "${BASH_SOURCE[0]:-}" ]]; then
-    script_directory="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-    for candidate in "$script_directory/packaging/linux/cli-install.sh" "$script_directory/cli-install-linux.sh"; do
-        if [[ -f "$candidate" ]]; then helper="$candidate"; break; fi
-    done
-fi
-if [[ -z "$helper" ]]; then
-    temporary_helper="$(mktemp "${TMPDIR:-/tmp}/sami-cli-install.XXXXXX")"
-    trap 'rm -f "$temporary_helper"' EXIT
-    helper_url="https://raw.githubusercontent.com/$REPOSITORY/main/packaging/linux/cli-install.sh"
-    echo '[sami] Fetching the shared installation steps...'
-    curl -fsSL --connect-timeout 15 --max-time 60 "$helper_url" -o "$temporary_helper"
-    helper="$temporary_helper"
-fi
+# The latest release publishes this helper with its versions and checksum stamped in.
+# The copy under packaging/ is only the template, so it is never used here.
+helper="$(mktemp "${TMPDIR:-/tmp}/sami-cli-install.XXXXXX")"
+trap 'rm -f "$helper"' EXIT
+echo '[sami] Fetching the installation steps from the latest release...'
+curl -fsSL --connect-timeout 15 --max-time 60 \
+    "https://github.com/$REPOSITORY/releases/latest/download/cli-install-linux.sh" -o "$helper"
 
 bash "$helper" --component "$component"

@@ -850,14 +850,14 @@ footer .author-link img {
       <button class="install-tab" data-tab="source">From source</button>
     </div>
     <div class="cmd-block active" id="tab-linux">
-      <pre>curl -fsSL https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.sh | bash</pre>
-      <button class="copy-btn" data-cmd="curl -fsSL https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.sh | bash" aria-label="Copy">
+      <pre>curl -fsSL https://github.com/dramirezbe/sami-pdf2md-tool/releases/latest/download/install.sh | bash</pre>
+      <button class="copy-btn" data-cmd="curl -fsSL https://github.com/dramirezbe/sami-pdf2md-tool/releases/latest/download/install.sh | bash" aria-label="Copy">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M5 11H3.5A1.5 1.5 0 012 9.5v-7A1.5 1.5 0 013.5 1h7A1.5 1.5 0 0112 2.5V5"/></svg>
       </button>
     </div>
     <div class="cmd-block" id="tab-windows">
-      <pre>irm https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.ps1 | iex</pre>
-      <button class="copy-btn" data-cmd="irm https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.ps1 | iex" aria-label="Copy">
+      <pre>irm https://github.com/dramirezbe/sami-pdf2md-tool/releases/latest/download/install.ps1 | iex</pre>
+      <button class="copy-btn" data-cmd="irm https://github.com/dramirezbe/sami-pdf2md-tool/releases/latest/download/install.ps1 | iex" aria-label="Copy">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M5 11H3.5A1.5 1.5 0 012 9.5v-7A1.5 1.5 0 013.5 1h7A1.5 1.5 0 0112 2.5V5"/></svg>
       </button>
     </div>
@@ -1053,7 +1053,7 @@ footer .author-link img {
     <p>One command. No sign-up. No API key.</p>
     <div class="final-cta-install" id="final-install" title="Click to copy">
       <span class="prompt">$</span>
-      <code style="font-family:var(--font-mono);background:none;padding:0">curl -fsSL https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.sh | bash</code>
+      <code style="font-family:var(--font-mono);background:none;padding:0">curl -fsSL https://github.com/dramirezbe/sami-pdf2md-tool/releases/latest/download/install.sh | bash</code>
     </div>
     <div class="final-cta-links">
       <a href="getting-started.html">Documentation &rarr;</a>
@@ -1182,7 +1182,7 @@ footer .author-link img {
   // --- Final CTA copy ---
   var finalInstall = document.getElementById("final-install");
   finalInstall.addEventListener("click", function() {
-    navigator.clipboard.writeText("curl -fsSL https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.sh | bash").then(function() {
+    navigator.clipboard.writeText("curl -fsSL https://github.com/dramirezbe/sami-pdf2md-tool/releases/latest/download/install.sh | bash").then(function() {
       finalInstall.style.borderColor = "var(--success)";
       setTimeout(function() { finalInstall.style.borderColor = ""; }, 2000);
     }).catch(function() {});

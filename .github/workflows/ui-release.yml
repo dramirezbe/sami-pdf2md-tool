@@ -123,9 +123,6 @@ jobs:
           with open('packaging/runtime-manifest.json', 'w') as f: json.dump(m, f, indent=2)
           " "$V" "$SHA"
 
-          # 5. Patch install.ps1 (top-level)
-          sed -i "s/^\\\$uiVersion = .*/\\\$uiVersion = '$V'/"           install.ps1
-
           # Store wheel path for upload
           echo "WHEEL_PATH=dist/$WHEEL" >> "$GITHUB_ENV"
           echo "WHEEL_NAME=$WHEEL" >> "$GITHUB_ENV"
@@ -246,11 +243,12 @@ jobs:
           cp stamped/packaging/runtime-manifest.json release-assets/
           cp stamped/install.ps1 release-assets/
           cp install.sh release-assets/
+          cp ui/assets/icons/sami-icon-512.png release-assets/
           cp stamped/packaging/linux/cli-install.sh release-assets/cli-install-linux.sh
           cp stamped/packaging/windows/cli-install.ps1 release-assets/cli-install-windows.ps1
           cd release-assets
           sha256sum SAMI-* sami_pdf2md_tool-* runtime-manifest.json install.sh install.ps1 \
-            cli-install-linux.sh cli-install-windows.ps1 > SHA256SUMS
+            cli-install-linux.sh cli-install-windows.ps1 sami-icon-512.png > SHA256SUMS
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ env.RELEASE_VERSION }}
@@ -267,4 +265,5 @@ jobs:
             release-assets/install.ps1
             release-assets/cli-install-linux.sh
             release-assets/cli-install-windows.ps1
+            release-assets/sami-icon-512.png
             release-assets/SHA256SUMS

@@ -33,7 +33,7 @@ npm start
 ## Quick Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.sh | bash
+curl -fsSL https://github.com/dramirezbe/sami-pdf2md-tool/releases/latest/download/install.sh | bash
 ```
 
 This installs `uv` if needed, registers the CLI, and prepares the local models. To install only the CLI, pass `--component cli` after `bash -s --`. When the NVIDIA driver and available VRAM support it, SAMI downloads and verifies the CUDA build of `llama-server` and its matching runtime libraries.
@@ -43,7 +43,7 @@ This installs `uv` if needed, registers the CLI, and prepares the local models. 
 Install from PowerShell 5.1 or later:
 
 ```powershell
-irm https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.ps1 | iex
+irm https://github.com/dramirezbe/sami-pdf2md-tool/releases/latest/download/install.ps1 | iex
 ```
 
 Verify the installation and convert a PDF:
@@ -62,17 +62,17 @@ For CLI-only installation, run the downloaded `install.ps1` with `-Component cli
 sami upgrade
 ```
 
-The command fetches the installer with `irm` on Windows or `curl` on Linux. It updates SAMI in its existing Python environment and reuses compatible dependencies, including PyTorch. Model caches stay in place.
-
-By default, the command follows the installed Git ref, or `main` for a wheel install. To choose a different branch, tag, or commit, run `sami upgrade --ref <ref>`. On Windows, wait for the installer to report completion before starting another SAMI command.
+The command runs the installer from the latest release and updates the CLI and the desktop app together. It updates SAMI in its existing Python environment and reuses compatible dependencies, including PyTorch. Model caches stay in place. On Windows, wait for the installer to report completion before starting another SAMI command.
 
 ### Other install methods
 
 <details>
 <summary>uv (manual)</summary>
 
+Download the wheel from the [latest release](https://github.com/dramirezbe/sami-pdf2md-tool/releases/latest), then run:
+
 ```bash
-uv tool install --python 3.12 git+https://github.com/dramirezbe/sami-pdf2md-tool.git
+uv tool install --python 3.12 ./sami_pdf2md_tool-<version>-py3-none-any.whl
 ```
 
 </details>

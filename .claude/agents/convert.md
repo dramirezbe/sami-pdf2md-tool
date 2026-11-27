@@ -11,7 +11,7 @@ Convert one or more PDF files to Markdown with extracted figures using sami.
 ## Steps
 
 1. Verify `sami` is installed: `which sami`
-2. If not installed, run: `curl -fsSL https://raw.githubusercontent.com/dramirezbe/sami-pdf2md-tool/main/install.sh | bash`
+2. If not installed, run: `curl -fsSL https://github.com/dramirezbe/sami-pdf2md-tool/releases/latest/download/install.sh | bash`
 3. Run conversion with the user's requested options
 4. Check the output folder for the generated `.md` and figure files
 5. Report: pages converted, figures extracted, output location
