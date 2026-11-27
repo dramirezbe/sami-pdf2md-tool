@@ -597,7 +597,10 @@ def _convert_batch(args, jobs, results, control, engines, claims, emit):
                     with control.publishing():
                         stem = claims.enter_context(claim_stem(pdf, out_dir, args.flat))
                 control.check()
-                staging = make_staging_dir(out_dir, stem)
+                # A signal between creating the directory and binding it would orphan it.
+                with control.publishing():
+                    staging = make_staging_dir(out_dir, stem)
+                control.check()
                 request = ConversionRequest(
                     job_id=job_id, input_path=pdf, mode=args.mode,
                     options=ConversionOptions(device=requested), staging_dir=staging,
@@ -668,7 +671,9 @@ def _convert_batch(args, jobs, results, control, engines, claims, emit):
             finally:
                 _ACTIVE_PROGRESS_CALLBACK = None
                 if staging is not None:
-                    shutil.rmtree(staging, ignore_errors=True)
+                    # A repeated interrupt must not cut the cleanup short.
+                    with control.publishing():
+                        shutil.rmtree(staging, ignore_errors=True)
     control.active = None
 
 

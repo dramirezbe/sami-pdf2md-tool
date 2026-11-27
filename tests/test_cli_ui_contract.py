@@ -5,6 +5,7 @@ import io
 import json
 import os
 from pathlib import Path
+import shutil
 import signal
 import subprocess
 import sys
@@ -15,6 +16,7 @@ from unittest.mock import patch
 
 from sami.cli import main
 from sami.contracts import AccelerationError, EngineResult
+from sami.outputs import make_staging_dir
 
 
 class UIContractTests(unittest.TestCase):
@@ -109,6 +111,39 @@ class UIContractTests(unittest.TestCase):
             self.assertEqual(result, 1)
             self.assertTrue((root / "partial" / "partial.md").exists())
             self.assertEqual(events[-1]["data"]["totals"]["partial"], 1)
+
+    def test_interrupt_while_creating_staging_leaves_no_directory(self):
+        def create_then_interrupt(*args):
+            created = make_staging_dir(*args)
+            signal.raise_signal(signal.SIGINT)
+            return created
+
+        with patch("sami.cli.make_staging_dir", side_effect=create_then_interrupt):
+            self._interrupted_conversion()
+
+    def test_repeated_interrupt_during_cleanup_leaves_no_directory(self):
+        remove = shutil.rmtree
+
+        def interrupt_then_remove(path, *args, **kwargs):
+            if "-sami-" in Path(path).name:
+                signal.raise_signal(signal.SIGINT)
+            remove(path, *args, **kwargs)
+
+        with patch("sami.cli.shutil.rmtree", side_effect=interrupt_then_remove):
+            self._interrupted_conversion()
+
+    def _interrupted_conversion(self):
+        def convert(*_args, **_kwargs):
+            signal.raise_signal(signal.SIGINT)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pdf = root / "one.pdf"
+            pdf.touch()
+            result, events = self.run_json(root, [pdf, "--mode", "fast"], convert)
+            self.assertEqual(result, 130)
+            self.assertEqual(events[-1]["data"]["totals"]["cancelled"], 1)
+            self.assertEqual(list(root.glob(".*-sami-*")), [])
 
     def test_stdin_cancel_finishes_active_and_queued_documents(self):
         self._cancel_batch(use_stdin=True)
