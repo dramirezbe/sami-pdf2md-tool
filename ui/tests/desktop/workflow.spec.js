@@ -115,6 +115,30 @@ test("opens the desktop app, stages a mixed batch, previews and exports the resu
     if (!selectedCli) {
       await expect(page.locator("#run-view")).toBeVisible();
       await expect(version).toBeInViewport();
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      const spinner = page.locator(".spinner");
+      await expect(spinner).toHaveCSS("animation-iteration-count", "infinite");
+      await expect(page.locator("#stage-fill")).toHaveCSS("animation-iteration-count", "infinite");
+      await expect(page.locator("#stage-fill")).toHaveCSS("animation-name", "travel");
+      const firstTransform = await spinner.evaluate(el => getComputedStyle(el).transform);
+      await expect.poll(() => spinner.evaluate(el => getComputedStyle(el).transform)).not.toBe(firstTransform);
+
+      const details = page.locator("#diagnostics-panel");
+      await page.locator("#diagnostics-summary").click();
+      await expect(details).toHaveAttribute("open", "");
+      await app.evaluate(({ BrowserWindow }) => {
+        BrowserWindow.getAllWindows()[0].webContents.send("sami:diagnostic", { level: "info", message: "A new diagnostic" });
+      });
+      await expect(page.locator("#diagnostics-log")).toContainText("A new diagnostic");
+      await expect(details).toHaveAttribute("open", "");
+      await app.evaluate(({ BrowserWindow }) => {
+        BrowserWindow.getAllWindows()[0].webContents.send("sami:event", {
+          protocol_version: 1, event: "job_progress", data: { stage: "Reading PDF", percent: 37 },
+        });
+      });
+      await expect(page.locator("#stage-fill")).toHaveCSS("animation-name", "progress-shimmer");
+      await expect(page.locator("#file-percent")).toHaveText("~37%");
+      await expect(details).toHaveAttribute("open", "");
     }
     await expect(page.locator("#results-view")).toBeVisible();
     await expect(version).toBeInViewport();

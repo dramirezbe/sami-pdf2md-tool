@@ -492,7 +492,7 @@ function appendDiagnostic(value) {
   state.lastDiagnostics.push(text);
   if (state.lastDiagnostics.length > 240) state.lastDiagnostics.shift();
   setText("diagnostics-log", state.lastDiagnostics.join("\n"));
-  byId("diagnostics-panel").open = value?.level === "error";
+  if (value?.level === "error") byId("diagnostics-panel").open = true;
 }
 
 function onRunnerEvent(event) {

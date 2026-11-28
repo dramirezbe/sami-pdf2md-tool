@@ -141,7 +141,8 @@ h2, h3, p { overflow-wrap: anywhere; }
 .stage-progress-track { height: 7px; margin-left: 50px; }
 .stage-progress-fill { transition: width 1.2s linear; }
 .stage-progress-track.indeterminate .stage-progress-fill { width: 27%; background: var(--accent); animation: travel 1.8s ease-in-out infinite; }
-.stage-progress-track.measured .stage-progress-fill { background: var(--sami-brand); }
+.stage-progress-track.measured .stage-progress-fill { background: linear-gradient(110deg, transparent 35%, rgba(255,255,255,.25) 50%, transparent 65%) 200% 0 / 220% 100%, var(--sami-brand); animation: progress-shimmer 2.4s linear infinite; }
+@keyframes progress-shimmer { to { background-position: -200% 0; } }
 .waiting-notice { margin: 13px 0 0 50px; padding: 9px 11px; border-radius: 7px; background: var(--sami-warning-subtle); color: var(--muted); font-size: 10px; line-height: 1.45; }
 .queue-row { justify-content: space-between; padding-top: 15px; margin-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; }
 .effective-device { padding: 4px 7px; border-radius: 5px; background: var(--inset); }
@@ -241,4 +242,6 @@ h2, h3, p { overflow-wrap: anywhere; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  /* Keep status indicators moving, but more gently, when Windows reduces motion. */
+  .spinner, .activity-dot, .progress-track.indeterminate .progress-fill, .stage-progress-track .stage-progress-fill { animation-duration: 4s !important; animation-iteration-count: infinite !important; }
 }
