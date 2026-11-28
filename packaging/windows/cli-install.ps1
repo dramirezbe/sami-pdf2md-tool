@@ -1,9 +1,9 @@
 [CmdletBinding()]
 param([switch] $Prepare,[switch] $Quiet,[switch] $CheckOnly)
 $ErrorActionPreference = 'Stop'
-$cliVersion = '0.4.4'
+$cliVersion = '0.4.5'
 $protocolVersion = 1
-$wheelName = 'sami_pdf2md_tool-0.4.4-py3-none-any.whl'
+$wheelName = 'sami_pdf2md_tool-0.4.5-py3-none-any.whl'
 $wheelUrl = "https://github.com/dramirezbe/sami-pdf2md-tool/releases/download/v$cliVersion/$wheelName"
 $wheelSha256 = '0000000000000000000000000000000000000000000000000000000000000000'
 $samiHome = if ($env:SAMI_HOME) { $env:SAMI_HOME } else { Join-Path $env:USERPROFILE '.sami' }

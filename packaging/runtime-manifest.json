@@ -1,6 +1,6 @@
 {
   "schema_version": "1",
-  "sami_version": "0.4.4",
+  "sami_version": "0.4.5",
   "python": {
     "required": ">=3.11,<3.14",
     "pinned": "3.12.13",
@@ -83,26 +83,26 @@
     }
   },
   "cli": {
-    "version": "0.4.4",
+    "version": "0.4.5",
     "protocol_version": 1,
     "python": "3.12",
-    "wheel": "sami_pdf2md_tool-0.4.4-py3-none-any.whl",
-    "url": "https://github.com/dramirezbe/sami-pdf2md-tool/releases/download/v0.4.4/sami_pdf2md_tool-0.4.4-py3-none-any.whl",
+    "wheel": "sami_pdf2md_tool-0.4.5-py3-none-any.whl",
+    "url": "https://github.com/dramirezbe/sami-pdf2md-tool/releases/download/v0.4.5/sami_pdf2md_tool-0.4.5-py3-none-any.whl",
     "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
   },
   "ui": {
-    "version": "0.4.4",
+    "version": "0.4.5",
     "protocol_version": 1,
-    "release_tag": "v0.4.4",
+    "release_tag": "v0.4.5",
     "windows_x64": {
-      "asset": "SAMI-0.4.4-win-x64-setup.exe",
-      "url": "https://github.com/dramirezbe/sami-pdf2md-tool/releases/download/v0.4.4/SAMI-0.4.4-win-x64-setup.exe"
+      "asset": "SAMI-0.4.5-win-x64-setup.exe",
+      "url": "https://github.com/dramirezbe/sami-pdf2md-tool/releases/download/v0.4.5/SAMI-0.4.5-win-x64-setup.exe"
     },
     "linux_x64": {
-      "asset": "SAMI-0.4.4-linux-x64.AppImage",
-      "url": "https://github.com/dramirezbe/sami-pdf2md-tool/releases/download/v0.4.4/SAMI-0.4.4-linux-x64.AppImage",
-      "deb_asset": "SAMI-0.4.4-linux-x64.deb",
-      "deb_url": "https://github.com/dramirezbe/sami-pdf2md-tool/releases/download/v0.4.4/SAMI-0.4.4-linux-x64.deb"
+      "asset": "SAMI-0.4.5-linux-x64.AppImage",
+      "url": "https://github.com/dramirezbe/sami-pdf2md-tool/releases/download/v0.4.5/SAMI-0.4.5-linux-x64.AppImage",
+      "deb_asset": "SAMI-0.4.5-linux-x64.deb",
+      "deb_url": "https://github.com/dramirezbe/sami-pdf2md-tool/releases/download/v0.4.5/SAMI-0.4.5-linux-x64.deb"
     }
   }
 }
