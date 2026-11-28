@@ -34,7 +34,7 @@ jobs:
         # so CI installs only the light deps the fast engine and tests need.
         # This keeps CI fast and deterministic; the full engine is validated
         # separately by the curl install on a real host.
-        run: pip install pytest pdfplumber "pymupdf==2.1" "pdftext==0.7.1" "psutil>=5.9" "PyYAML>=6.0"
+        run: pip install pytest pdfplumber beautifulsoup4 "pymupdf==2.1" "pdftext==0.7.1" "psutil>=5.9" "PyYAML>=6.0"
 
       - name: Run test suite
         run: python -m pytest tests/ -q
