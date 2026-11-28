@@ -55,6 +55,8 @@ def _make_verbose_converter_cls(stage_logger, stage_done_logger):
     class VerboseConverter(PdfConverter):
         def __call__(self, filepath, pdf_name: str = ""):
             self._pdf_name = pdf_name or Path(filepath).name
+            self.sami_ocr_gaps = []
+            self.sami_ocr_warnings = []
             self._convert_t0 = time.monotonic()
             with self.filepath_to_str(filepath) as temp_path:
                 document = self.build_document(temp_path)
@@ -139,7 +141,29 @@ def _make_verbose_converter_cls(stage_logger, stage_done_logger):
             else:
                 stage_logger(name, "OCR (skipped, all pages have text)...", end="", flush=True)
             ocr_builder = self.resolve_dependencies(OcrBuilder)
-            ocr_builder(document, provider)
+            from sami.ocr_budget import bounded_ocr
+            ocr_completed = 0
+
+            def report_ocr(budget, elapsed):
+                nonlocal ocr_completed
+                label = f"page {budget.page}" if budget.page is not None else "page"
+                if budget.page is not None:
+                    ocr_completed += 1
+                    stage_logger(name, f"OCR progress ({ocr_completed}/{len(ocr_pages)} pages completed; {label}, {elapsed:.1f}s)")
+                else:
+                    stage_logger(name, f"OCR {label} finished in {elapsed:.1f}s")
+                if budget.retries:
+                    self.sami_ocr_warnings.append({"code": "OCR_RETRIED", "page": budget.page,
+                        "message": f"OCR {label} was retried {budget.retries} time(s)."})
+                if budget.truncated:
+                    self.sami_ocr_warnings.append({"code": "OCR_TRUNCATED", "page": budget.page,
+                        "message": f"OCR {label} reached the model output limit {budget.truncated} time(s). Review the result."})
+                if budget.timed_out:
+                    self.sami_ocr_gaps.append({"code": "OCR_PAGE_TIMEOUT", "page": budget.page,
+                        "message": f"OCR {label} exceeded {budget.seconds:g}s. Partial output was retained; review the page."})
+
+            with bounded_ocr([p.page_id + 1 for p in ocr_pages], report_ocr):
+                ocr_builder(document, provider)
             stage_done_logger(time.monotonic() - t0)
 
             # Structure
@@ -400,6 +424,8 @@ def convert(
             markdown=markdown,
             resources=resources,
             processed_pages=converter.page_count or 0,
+            warnings=tuple(getattr(converter, "sami_ocr_warnings", ())),
+            gaps=tuple(getattr(converter, "sami_ocr_gaps", ())),
             metrics={
                 "engine": "marker",
                 "marker_mode": marker_mode,

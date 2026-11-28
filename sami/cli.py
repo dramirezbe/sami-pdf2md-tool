@@ -709,6 +709,7 @@ def _convert_batch(args, jobs, results, control, engines, claims, emit):
                 for warning in (*result.warnings, *result.gaps):
                     warnings.append(warning)
                     emit("warning", warning, job_id=job_id, attempt=attempt)
+                    log(f"  [{pdf.name}] WARNING: {warning.get('message', warning.get('code', 'Review the output.'))}")
                 markdown = prepend_frontmatter(result.markdown, source=pdf, version=__version__)
                 (staging / f"{stem}.md").write_text(markdown, encoding="utf-8")
                 control.check()

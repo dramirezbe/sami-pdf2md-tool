@@ -138,6 +138,8 @@ The CLI reports conversion stages and live model progress when available. For in
 
 At model load, llama.cpp fits VLM layers to the free VRAM and the memory required for the current model and context. When an accelerator fails during conversion, SAMI retries the current document once on CPU with the same mode and continues the batch on CPU. Set `LLAMA_CPP_NGL` to an explicit layer count, or set it to `0` to run the VLM on CPU.
 
+In Marker modes (`balanced` and `quality`), OCR has a default limit of 120 seconds per page, including model retries. When the limit is reached, SAMI keeps the text received so far, continues with the next page, and marks the document as partial so the page can be reviewed against the PDF. A page may have little or no usable text at that point. Set `SAMI_OCR_PAGE_TIMEOUT` to a positive number of seconds to choose a different limit (for example, `300`). SAMI reports OCR page timings, retries, output truncation, and Unicode replacement characters when detected. Progress percentages are estimates; page counts show completed OCR pages.
+
 ## Installation status and desktop integration
 
 ```shell
