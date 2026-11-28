@@ -386,7 +386,10 @@ def convert(
             )
         from marker.output import text_from_rendered
 
-        rendered = converter(str(request.input_path), pdf_name=request.input_path.name)
+        from sami.engines.pdftext_unicode import repair_pdftext_unicode
+
+        with repair_pdftext_unicode():
+            rendered = converter(str(request.input_path), pdf_name=request.input_path.name)
         markdown, _extension, images = text_from_rendered(rendered)
         request.staging_dir.mkdir(parents=True, exist_ok=True)
         write_figures(images, request.staging_dir)
