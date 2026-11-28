@@ -140,6 +140,8 @@ At model load, llama.cpp fits VLM layers to the free VRAM and the memory require
 
 In Marker modes (`balanced` and `quality`), OCR has a default limit of 120 seconds per page, including model retries. When the limit is reached, SAMI keeps the text received so far, continues with the next page, and marks the document as partial so the page can be reviewed against the PDF. A page may have little or no usable text at that point. Set `SAMI_OCR_PAGE_TIMEOUT` to a positive number of seconds to choose a different limit (for example, `300`). SAMI reports OCR page timings, retries, output truncation, and Unicode replacement characters when detected. Progress percentages are estimates; page counts show completed OCR pages.
 
+SAMI checks digital tables against the PDF text layer. When content is missing, it retries the table as an image and only merges the OCR layout with PDF values when the row and column alignment is unambiguous. It also retries detected numbered algorithms. If a region cannot be verified, the result is marked partial and includes a warning and an appendix with its original image, source text, and any unverified OCR alternative. These checks help find omissions but do not certify mathematical accuracy. Targeted retries can take longer, with the OCR time limit applied to each retry.
+
 ## Installation status and desktop integration
 
 ```shell

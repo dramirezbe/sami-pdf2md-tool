@@ -57,6 +57,8 @@ def _make_verbose_converter_cls(stage_logger, stage_done_logger):
             self._pdf_name = pdf_name or Path(filepath).name
             self.sami_ocr_gaps = []
             self.sami_ocr_warnings = []
+            self.sami_fidelity_images = {}
+            self.sami_fidelity_notes = []
             self._convert_t0 = time.monotonic()
             with self.filepath_to_str(filepath) as temp_path:
                 document = self.build_document(temp_path)
@@ -134,22 +136,59 @@ def _make_verbose_converter_cls(stage_logger, stage_done_logger):
             doc_builder.render_highres(document, provider)
             stage_done_logger(time.monotonic() - t0)
 
-            # OCR
+            # Preserve scientific algorithms as independent, reviewable blocks.
+            from sami.scientific_fidelity import is_algorithm
+            from marker.schema import BlockTypes
+            algorithms = []
+            for page in text_pages:
+                for block in page.structure_blocks(document):
+                    if block.block_type != BlockTypes.Text or block.html:
+                        continue
+                    source = block.raw_text(document)
+                    if not is_algorithm(source):
+                        continue
+                    lines = block.contained_blocks(document, (BlockTypes.Line,))
+                    algorithms.append((page, block, source, block.structure[:],
+                                       [(line, line.removed) for line in lines], block.text_extraction_method))
+                    block.text_extraction_method = "surya"
+
+            def record_fidelity_review(page, block, kind, reason, source, candidate=None):
+                name_image = f"_sami_review_page_{page.page_id + 1}_{len(self.sami_fidelity_images) + 1}.png"
+                try:
+                    image = block.get_image(document, highres=True)
+                except Exception:
+                    image = None
+                if image is not None:
+                    self.sami_fidelity_images[name_image] = image
+                self.sami_ocr_gaps.append({
+                    "code": "SCIENTIFIC_REVIEW", "page": page.page_id + 1,
+                    "message": f"Review {kind} on page {page.page_id + 1}: {reason}.",
+                })
+                self.sami_fidelity_notes.append((page.page_id + 1, kind, name_image if image is not None else None, source, candidate))
+
+            # OCR includes surgical reprocessing on otherwise digital pages.
             t0 = time.monotonic()
-            if ocr_pages:
-                stage_logger(name, f"OCR ({len(ocr_pages)}/{n_pages} pages need it)...", end="", flush=True)
-            else:
-                stage_logger(name, "OCR (skipped, all pages have text)...", end="", flush=True)
             ocr_builder = self.resolve_dependencies(OcrBuilder)
+            block_pages = [page for page in text_pages if any(
+                block.text_extraction_method == "surya" and block.block_type not in ocr_builder.skip_ocr_blocks
+                for block in page.structure_blocks(document)
+            )]
+            ocr_work_pages = [*ocr_pages, *block_pages]
+            if ocr_work_pages:
+                stage_logger(name, f"OCR ({len(ocr_work_pages)}/{n_pages} pages need it)...", end="", flush=True)
+            else:
+                stage_logger(name, "OCR (skipped, no pages need it)...", end="", flush=True)
             from sami.ocr_budget import bounded_ocr
             ocr_completed = 0
+            ocr_uncertain = False
 
             def report_ocr(budget, elapsed):
-                nonlocal ocr_completed
+                nonlocal ocr_completed, ocr_uncertain
+                ocr_uncertain = ocr_uncertain or budget.timed_out or bool(budget.truncated)
                 label = f"page {budget.page}" if budget.page is not None else "page"
                 if budget.page is not None:
                     ocr_completed += 1
-                    stage_logger(name, f"OCR progress ({ocr_completed}/{len(ocr_pages)} pages completed; {label}, {elapsed:.1f}s)")
+                    stage_logger(name, f"OCR progress ({ocr_completed}/{len(ocr_work_pages)} pages completed; {label}, {elapsed:.1f}s)")
                 else:
                     stage_logger(name, f"OCR {label} finished in {elapsed:.1f}s")
                 if budget.retries:
@@ -162,9 +201,21 @@ def _make_verbose_converter_cls(stage_logger, stage_done_logger):
                     self.sami_ocr_gaps.append({"code": "OCR_PAGE_TIMEOUT", "page": budget.page,
                         "message": f"OCR {label} exceeded {budget.seconds:g}s. Partial output was retained; review the page."})
 
-            with bounded_ocr([p.page_id + 1 for p in ocr_pages], report_ocr):
+            with bounded_ocr([p.page_id + 1 for p in ocr_pages], report_ocr,
+                             block_page_numbers=[p.page_id + 1 for p in block_pages]):
                 ocr_builder(document, provider)
             stage_done_logger(time.monotonic() - t0)
+            from sami.scientific_fidelity import algorithm_candidate_safe
+            for page, block, source, structure, lines, method in algorithms:
+                candidate = block.html
+                safe = bool(candidate and not ocr_uncertain and algorithm_candidate_safe(source, candidate))
+                if not safe:
+                    block.html, block.structure, block.text_extraction_method = None, structure, method
+                    for line, removed in lines:
+                        line.removed = removed
+                # Mathematical OCR may alter a symbol even when text checks pass.
+                record_fidelity_review(page, block, "algorithm", "verify OCR and mathematical notation",
+                                       source, None if safe else candidate)
 
             # Structure
             t0 = time.monotonic()
@@ -193,7 +244,12 @@ def _make_verbose_converter_cls(stage_logger, stage_done_logger):
 
                 t0 = time.monotonic()
                 stage_logger(name, label, end="", flush=True)
-                processor(document)
+                if proc_name == "TableProcessor":
+                    from sami.scientific_fidelity import repair_tables
+                    repair_tables(processor, document, record_fidelity_review,
+                                  lambda message: stage_logger(name, message))
+                else:
+                    processor(document)
                 elapsed = time.monotonic() - t0
                 stage_done_logger(elapsed)
 
@@ -415,6 +471,9 @@ def convert(
         with repair_pdftext_unicode():
             rendered = converter(str(request.input_path), pdf_name=request.input_path.name)
         markdown, _extension, images = text_from_rendered(rendered)
+        images.update(getattr(converter, "sami_fidelity_images", {}))
+        from sami.scientific_fidelity import review_appendix
+        markdown += review_appendix(getattr(converter, "sami_fidelity_notes", ()))
         request.staging_dir.mkdir(parents=True, exist_ok=True)
         write_figures(images, request.staging_dir)
         resources = tuple(

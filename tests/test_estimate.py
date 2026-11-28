@@ -72,6 +72,16 @@ class FileProgressTests(unittest.TestCase):
         self.assertLess(progress.percent, 95)
         self.assertGreater(progress.percent, 60)
 
+    def test_slow_processor_does_not_claim_the_remaining_processors_are_done(self):
+        progress = self.make()
+        progress.stage("OCR (skipped, no pages need it)...")
+        progress.stage("[6/24] EquationProcessor...")
+        progress.model({"phase": "model_writing", "unit": "block", "completed": 0, "total": 3})
+        self.clock.now += 100_000
+        self.assertLess(progress.percent, 50)
+        progress.stage("[24/24] DebugProcessor...")
+        self.assertGreater(progress.percent, 90)
+
     def test_ticks_publish_only_changes(self):
         progress = self.make()
         progress.tick()

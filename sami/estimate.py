@@ -67,6 +67,8 @@ class FileProgress:
         self._real = 0.0
         self._ocr_completed = None
         self._ocr_total = None
+        self._finish_step = None
+        self._finish_total = None
         self._segment = "prepare"
         self._since = clock()
         self._start = 0.0
@@ -83,6 +85,10 @@ class FileProgress:
                 # Reserve 20% of the current page until its result arrives.
                 limit = (self._ocr_completed + 0.8) / self._ocr_total
                 fraction = min(fraction, min(limit, 0.95))
+            elif self._segment == "finish" and self._finish_total:
+                # A running processor can be slow; later processors are not done yet.
+                limit = (self._finish_step - 1 + 0.8) / self._finish_total
+                fraction = min(fraction, min(limit, 0.97))
             target = self._start + (self._end - self._start) * fraction
             self._shown = min(max(self._shown, target), CEILING)
             return int(self._shown)
@@ -105,7 +111,9 @@ class FileProgress:
                 # The previous segment is really over, so jump to its end.
                 self._enter("finish", self._end, 1.0, self._finish_seconds())
             elif (match := _STEP.match(name)) and self._segment == "finish":
-                self._real = max(self._real, 0.9 * int(match[1]) / max(int(match[2]), 1))
+                self._finish_step = int(match[1])
+                self._finish_total = max(int(match[2]), 1)
+                self._real = max(self._real, 0.9 * (self._finish_step - 1) / self._finish_total)
             self._emit({"stage": name, "completed": None, "total": None}, force=True)
 
     def model(self, data: dict) -> None:
