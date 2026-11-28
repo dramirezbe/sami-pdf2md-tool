@@ -80,7 +80,8 @@ def test_algorithm_check_rejects_truncation_and_changed_variable():
 
 def test_numbered_prose_is_not_classified_as_algorithm():
     from sami.scientific_fidelity import is_algorithm
-    assert not is_algorithm("1: First topic\n2: Second topic\n3: Third topic\n4: Fourth topic")
+    assert not is_algorithm("1: First topic for readers\n2: Second topic\n3: Third topic\n4: Fourth topic")
+    assert is_algorithm("1: for i in range\n2: test\n3: test\n4: return value")
 
 
 def test_review_appendix_survives_unavailable_markdown_renderer(monkeypatch):

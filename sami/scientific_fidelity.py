@@ -188,7 +188,8 @@ _IDENTIFIER = re.compile(r"\b[A-Z][A-Za-z0-9]{2,}\b")
 def is_algorithm(text):
     numbers = [int(n) for n in _ALGORITHM_LINE.findall(text)]
     return (len(numbers) >= 4 and numbers[0] == 1 and numbers == sorted(set(numbers))
-            and ("←" in text or re.search(r"\b(?:while|for|return|then)\b", text, re.IGNORECASE)))
+            and ("←" in text or re.search(r"\b(?:while|return|then)\b|\bfor\s+\w+\s*(?:in\b|=|∈)",
+                                          text, re.IGNORECASE)))
 
 
 def algorithm_source_html(source):
