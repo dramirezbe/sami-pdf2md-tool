@@ -1,5 +1,5 @@
 import { build } from "esbuild";
-import { cp, mkdir, rm } from "node:fs/promises";
+import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -8,6 +8,11 @@ const source = join(root, "src");
 const dist = join(root, "dist");
 const dependencies = join(root, "node_modules");
 const pdf = join(dependencies, "pdfjs-dist");
+const [manifest, index] = await Promise.all([
+  readFile(join(root, "package.json"), "utf8"),
+  readFile(join(source, "index.html"), "utf8"),
+]);
+const { version } = JSON.parse(manifest);
 
 await rm(dist, { recursive: true, force: true });
 await mkdir(join(dist, "pdfjs"), { recursive: true });
@@ -24,7 +29,7 @@ await Promise.all([
     legalComments: "eof",
     minify: true,
   }),
-  cp(join(source, "index.html"), join(dist, "index.html")),
+  writeFile(join(dist, "index.html"), index.replaceAll("{{SAMI_VERSION}}", version)),
   cp(join(source, "styles.css"), join(dist, "styles.css")),
   cp(join(source, "styles"), join(dist, "styles"), { recursive: true }),
   cp(join(root, "assets", "icons"), join(dist, "assets", "icons"), { recursive: true }),

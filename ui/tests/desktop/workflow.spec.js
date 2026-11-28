@@ -9,6 +9,29 @@ const pkg = JSON.parse(await readFile(join(ui, "package.json"), "utf8"));
 const source = fileURLToPath(new URL("../../../test-pdfs/test_document.pdf", import.meta.url));
 const fixture = new URL("fake-cli.mjs", import.meta.url).href;
 const image = join(ui, "assets", "icons", "sami-icon-128.png");
+const desktopVersion = `v${pkg.version}`;
+
+test("keeps the desktop version in view while scrolling without an installed CLI", async () => {
+  const temporary = await mkdtemp(join(tmpdir(), "sami-desktop-version-"));
+  let app;
+  try {
+    app = await electron.launch({
+      args: [`--user-data-dir=${join(temporary, "profile")}`, ui],
+      env: { ...process.env, SAMI_HOME: join(temporary, "no-cli") },
+    });
+    const page = await app.firstWindow();
+    const version = page.locator("#app-version");
+    await expect(page.locator("#health-pill")).toHaveClass(/\brepair\b/);
+    await expect(version).toHaveText(desktopVersion);
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(720, 560));
+    await page.locator("#convert-button").scrollIntoViewIfNeeded();
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+    await expect(version).toBeInViewport({ ratio: 1 });
+  } finally {
+    if (app) await app.close();
+    await rm(temporary, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+  }
+});
 
 test("opens the desktop app, stages a mixed batch, previews and exports the results, and cancels", async () => {
   const temporary = await mkdtemp(join(tmpdir(), "sami-desktop-"));
@@ -43,8 +66,12 @@ test("opens the desktop app, stages a mixed batch, previews and exports the resu
     page.on("pageerror", error => errors.push(error.message));
     await expect(page.locator("html")).toHaveAttribute("data-sami-ready", "true");
     await expect(page.locator("#app-subtitle")).toContainText("Smart Automated Markdown Interpreter");
+    const version = page.locator("#app-version");
+    await expect(version).toHaveText(desktopVersion);
     await expect(page.locator("#convert-button")).toBeDisabled();
     await page.locator("#settings-button").click();
+    await expect(page.locator("#settings-version")).toHaveText(desktopVersion);
+    await expect(page.locator("#settings-version")).toBeVisible();
     await page.locator("#language-select").selectOption("es");
     await page.locator("#theme-select").selectOption("dark");
     await expect(page.locator("html")).toHaveAttribute("lang", "es");
@@ -85,8 +112,12 @@ test("opens the desktop app, stages a mixed batch, previews and exports the resu
     await expect(page.locator("#flat-toggle")).toBeChecked();
     if (selectedCli) await page.locator("#mode-select").selectOption("fast");
     await page.locator("#convert-button").click();
-    if (!selectedCli) await expect(page.locator("#run-view")).toBeVisible();
+    if (!selectedCli) {
+      await expect(page.locator("#run-view")).toBeVisible();
+      await expect(version).toBeInViewport();
+    }
     await expect(page.locator("#results-view")).toBeVisible();
+    await expect(version).toBeInViewport();
     await expect(page.locator("#result-list")).toContainText("Informe ñ.pdf");
     await expect(page.locator("#result-list")).toContainText("Another.pdf");
     const result = page.locator("#result-list").getByText("Informe ñ.pdf", { exact: true });

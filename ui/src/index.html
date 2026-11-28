@@ -16,7 +16,10 @@
         <div class="brand-lockup">
           <img src="./assets/icons/sami-icon-32.png" width="32" height="32" alt="" class="brand-icon">
           <div class="brand-copy">
-            <h1 id="app-title">SAMI</h1>
+            <div class="versioned-heading">
+              <h1 id="app-title">SAMI</h1>
+              <span class="version-badge" id="app-version">v{{SAMI_VERSION}}</span>
+            </div>
             <p id="app-subtitle">Smart Automated Markdown Interpreter</p>
           </div>
         </div>
@@ -233,7 +236,16 @@
     <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
     <dialog id="settings-dialog" class="settings-dialog">
       <form method="dialog" class="settings-form">
-        <div class="dialog-heading"><div><p class="eyebrow" id="settings-eyebrow">Preferences</p><h2 id="settings-heading">Settings</h2></div><button class="icon-button" value="close" aria-label="Close">×</button></div>
+        <div class="dialog-heading">
+          <div>
+            <p class="eyebrow" id="settings-eyebrow">Preferences</p>
+            <div class="versioned-heading">
+              <h2 id="settings-heading">Settings</h2>
+              <span class="version-badge" id="settings-version">v{{SAMI_VERSION}}</span>
+            </div>
+          </div>
+          <button class="icon-button" value="close" aria-label="Close">×</button>
+        </div>
         <label class="field-label" for="language-select"><span id="language-label">Language</span>
           <select id="language-select"><option value="en">English</option><option value="es">Español</option></select>
         </label>

@@ -12,7 +12,7 @@ Powered by [Marker](https://github.com/VikParuchuri/marker).
 
 ## Desktop app
 
-SAMI Desktop lets you add several PDFs or folders, review the list, and start a conversion with **Convert**. It shows the active document, elapsed time, and batch progress. When a result is available, you can preview its PDF and Markdown, open the output folder, or export the document with its figures. Settings offer English and Spanish and light and dark appearance.
+SAMI Desktop lets you add several PDFs or folders, review the list, and start a conversion with **Convert**. It shows the active document, elapsed time, and batch progress. When a result is available, you can preview its PDF and Markdown, open the output folder, or export the document with its figures. The desktop version is always visible next to the SAMI name and also appears in Settings. Settings offer English and Spanish and light and dark appearance.
 
 The desktop distribution targets native Windows with a per-user installer and Linux with an AppImage and `.deb` package. Setup prepares or reuses the matching CLI automatically.
 
