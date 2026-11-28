@@ -97,6 +97,22 @@ class UIContractTests(unittest.TestCase):
             self.assertEqual(progress_jobs[-1], terminals[1]["job_id"])
             self.assertFalse(list(root.rglob("failed-attempt.png")))
 
+    def test_replacement_characters_raise_visible_warning(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pdf = root / "paper.pdf"
+            pdf.touch()
+            result, events = self.run_json(
+                root, [pdf, "--mode", "fast"],
+                lambda *_args, **_kwargs: EngineResult(markdown="bad \ufffd and \ufffd"),
+            )
+            self.assertEqual(result, 0)
+            warning, = [e["data"] for e in events if e["event"] == "warning"]
+            self.assertEqual(warning["code"], "REPLACEMENT_CHARACTERS")
+            self.assertEqual(warning["count"], 2)
+            finished, = [e for e in events if e["event"] == "job_finished"]
+            self.assertEqual(finished["data"]["result"]["warnings"], [warning])
+
     def test_partial_output_is_published_with_a_nonzero_exit(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

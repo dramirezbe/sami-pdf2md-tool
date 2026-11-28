@@ -684,6 +684,16 @@ def _convert_batch(args, jobs, results, control, engines, claims, emit):
                 tracker.save()
                 converting = False
                 control.check()
+                replacement_count = result.markdown.count("\ufffd")
+                if replacement_count:
+                    warning = {
+                        "code": "REPLACEMENT_CHARACTERS",
+                        "message": f"Output contains {replacement_count} Unicode replacement character(s); some text may be unreadable. Review the Markdown against the PDF.",
+                        "count": replacement_count,
+                    }
+                    warnings.append(warning)
+                    emit("warning", warning, job_id=job_id, attempt=attempt)
+                    log(f"  [{pdf.name}] WARNING: {warning['message']}")
                 for warning in (*result.warnings, *result.gaps):
                     warnings.append(warning)
                     emit("warning", warning, job_id=job_id, attempt=attempt)
