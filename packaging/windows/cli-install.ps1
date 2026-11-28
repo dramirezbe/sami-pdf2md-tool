@@ -1,11 +1,11 @@
 [CmdletBinding()]
 param([switch] $Prepare,[switch] $Quiet,[switch] $CheckOnly)
 $ErrorActionPreference = 'Stop'
-$cliVersion = '0.3.2'
+$cliVersion = '0.4.2'
 $protocolVersion = 1
-$wheelName = 'sami_pdf2md_tool-0.3.2-py3-none-any.whl'
+$wheelName = 'sami_pdf2md_tool-0.4.2-py3-none-any.whl'
 $wheelUrl = "https://github.com/dramirezbe/sami-pdf2md-tool/releases/download/v$cliVersion/$wheelName"
-$wheelSha256 = '54b8362bf6093190b03e04b993598277221fda178c12bb0450bbc9bc6bfa4aad'
+$wheelSha256 = '0000000000000000000000000000000000000000000000000000000000000000'
 $samiHome = if ($env:SAMI_HOME) { $env:SAMI_HOME } else { Join-Path $env:USERPROFILE '.sami' }
 $recordPath = Join-Path $samiHome 'installation.json'
 $uvCommand = Get-Command uv -ErrorAction SilentlyContinue

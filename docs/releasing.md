@@ -1,20 +1,17 @@
 # SAMI Desktop releases
 
-The desktop app and CLI have independent versions. Desktop `0.3.0` uses the published CLI `0.2.4` and protocol v1. The runtime manifest records the pinned wheel, its SHA-256, and the expected desktop artifact names.
+The Git tag selects a release. The root `VERSION` file records the matching SAMI version in the commit. The CLI and desktop release use the same version.
+
+## Prepare a release
+
+1. Change only `VERSION` to the intended stable version, such as `0.4.3`.
+2. Run `python3 scripts/sync_version.py --sync` (on Windows, `python scripts/sync_version.py --sync`). This updates the npm metadata, runtime manifest, and installer templates. Review and commit the resulting changes.
+3. Validate the candidate and merge it into `main`. On the intended release commit, run `python3 scripts/tag_release.py`. This checks that the working tree is clean and the derived version metadata is synchronized before creating the annotated tag. Push the tag with the command it prints.
+
+The tag workflow independently rejects a tag that does not match the committed `VERSION`, or a commit with out-of-sync derived metadata. A tag pushed directly with Git can exist even when validation fails, but it will not produce a release. The release workflow calculates the wheel checksum when building and stamps it into the installer assets and runtime manifest.
 
 ## Validate a candidate
 
-From `ui/`, run `npm ci`, `npm test`, `npm run build`, and `npm run test:desktop` with Node.js 24. On headless Linux, run the desktop test under `xvfb-run -a`. The test exercises file picking, multiple dropped PDFs, a folder batch, Markdown and PDF previews, export, and cancellation. With `SAMI_TEST_REAL_CLI_HOME` pointing at a ready CLI installation, it runs the batch against that CLI.
+From `ui/`, run `npm ci`, `npm test`, `npm run build`, and `npm run test:desktop` with Node.js 24. On headless Linux, run the desktop test under `xvfb-run -a`. With `SAMI_TEST_REAL_CLI_HOME` pointing at a ready CLI installation, the desktop test runs its batch against that CLI.
 
-| Platform | Package | Acceptance checks |
-|---|---|---|
-| Native Windows x64 | `npm run package:win` | Run the NSIS installer with the pinned CLI. Check Installed apps, Start, and the desktop shortcut. Launch from the installed path. Uninstall the app and verify `sami --version`. |
-| Linux x64 | `npm run package:linux` | Verify the AppImage and its application menu entry on Arch Linux and Debian 13. Include Arch's `openssl-3` runtime when validating on an OpenSSL 4 system. Check that UI removal preserves the CLI and results. |
-
-Run `--smoke-test` on each packaged executable to verify Electron and the bundled renderer start. For an AppImage host without FUSE, run it with `--appimage-extract-and-run`.
-
-## Publish
-
-1. Merge the validated candidate into `main` and tag that commit `v0.3.0`.
-2. The desktop release workflow builds Windows and Linux packages and creates a draft with the packages, installers, manifest, and `SHA256SUMS`.
-3. Verify the draft's downloads and repeat the installation checks with those exact artifacts before publishing. The installers consume these prebuilt files and the original CLI wheel.
+The release workflow builds and smoke-tests the Windows x64 installer and Linux x64 AppImage, and builds the Linux x64 deb package. It creates a draft release with these packages, installers, the Python wheel, runtime manifest, and checksums. Verify the draft assets and platform installation behavior before publishing it.

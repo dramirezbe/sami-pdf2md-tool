@@ -1,6 +1,6 @@
 {
   "schema_version": "1",
-  "sami_version": "0.3.2",
+  "sami_version": "0.4.2",
   "python": {
     "required": ">=3.11,<3.14",
     "pinned": "3.12.13",
@@ -10,19 +10,43 @@
     "repo": "ggml-org/llama.cpp",
     "note": "Fetched from GitHub releases. Use latest stable build matching each platform suffix.",
     "platforms": {
-      "linux-x64":    { "suffix": "-bin-ubuntu-x64.tar.gz",         "binary": "llama-server",     "format": "tgz" },
-      "linux-arm64":  { "suffix": "-bin-ubuntu-arm64.tar.gz",        "binary": "llama-server",     "format": "tgz" },
-      "win-x64":      { "suffix": "-bin-win-llama-server-x64.zip",   "binary": "llama-server.exe", "format": "zip" },
-      "win-arm64":    { "suffix": "-bin-win-llama-server-arm64.zip",  "binary": "llama-server.exe", "format": "zip" },
-      "macos-arm64":  { "suffix": "-bin-macos-arm64.tar.gz",         "binary": "llama-server",     "format": "tgz" },
-      "macos-x64":    { "suffix": "-bin-macos-x64.tar.gz",           "binary": "llama-server",     "format": "tgz" }
+      "linux-x64": {
+        "suffix": "-bin-ubuntu-x64.tar.gz",
+        "binary": "llama-server",
+        "format": "tgz"
+      },
+      "linux-arm64": {
+        "suffix": "-bin-ubuntu-arm64.tar.gz",
+        "binary": "llama-server",
+        "format": "tgz"
+      },
+      "win-x64": {
+        "suffix": "-bin-win-llama-server-x64.zip",
+        "binary": "llama-server.exe",
+        "format": "zip"
+      },
+      "win-arm64": {
+        "suffix": "-bin-win-llama-server-arm64.zip",
+        "binary": "llama-server.exe",
+        "format": "zip"
+      },
+      "macos-arm64": {
+        "suffix": "-bin-macos-arm64.tar.gz",
+        "binary": "llama-server",
+        "format": "tgz"
+      },
+      "macos-x64": {
+        "suffix": "-bin-macos-x64.tar.gz",
+        "binary": "llama-server",
+        "format": "tgz"
+      }
     }
   },
   "surya_gguf": {
     "repo": "datalab-to/surya-ocr-2-gguf",
     "revision": "6a3a4c30e5e74446d4f8b6afd05b2f2da970f470",
     "files": {
-      "model":  "surya-2.gguf",
+      "model": "surya-2.gguf",
       "mmproj": "surya-2-mmproj.gguf"
     },
     "note": "Required for quality mode (VLM layout). Revision verified in U00 evidence on 2026-11-18."
@@ -31,7 +55,7 @@
     "version": ">=2.1",
     "note": "Install the CUDA-enabled wheel when a compatible GPU is detected; CPU wheel otherwise. The installer must not let a generic resolver swap one for the other.",
     "cuda_index_url": "https://download.pytorch.org/whl/cu121",
-    "cpu_index_url":  "https://download.pytorch.org/whl/cpu"
+    "cpu_index_url": "https://download.pytorch.org/whl/cpu"
   },
   "marker": {
     "package": "marker-pdf",
@@ -39,32 +63,46 @@
     "note": "Pinned. Do not upgrade silently."
   },
   "modes": {
-    "fast":     { "engine": "fast",   "inference_server": false, "gpu_required": false },
-    "balanced": { "engine": "marker", "inference_server": false, "gpu_required": false, "marker_mode": "fast"     },
-    "quality":  { "engine": "marker", "inference_server": true,  "gpu_required": false, "marker_mode": "balanced",
-                  "note": "inference_server=true means llama-server is used. gpu_required=false: works on CPU with -ngl 0." }
+    "fast": {
+      "engine": "fast",
+      "inference_server": false,
+      "gpu_required": false
+    },
+    "balanced": {
+      "engine": "marker",
+      "inference_server": false,
+      "gpu_required": false,
+      "marker_mode": "fast"
+    },
+    "quality": {
+      "engine": "marker",
+      "inference_server": true,
+      "gpu_required": false,
+      "marker_mode": "balanced",
+      "note": "inference_server=true means llama-server is used. gpu_required=false: works on CPU with -ngl 0."
+    }
   },
   "cli": {
-    "version": "0.3.2",
+    "version": "0.4.2",
     "protocol_version": 1,
     "python": "3.12",
-    "wheel": "sami_pdf2md_tool-0.3.2-py3-none-any.whl",
-    "url": "https://github.com/dramirezbe/sami-pdf2md-tool/releases/download/v0.3.2/sami_pdf2md_tool-0.3.2-py3-none-any.whl",
-    "sha256": "54b8362bf6093190b03e04b993598277221fda178c12bb0450bbc9bc6bfa4aad"
+    "wheel": "sami_pdf2md_tool-0.4.2-py3-none-any.whl",
+    "url": "https://github.com/dramirezbe/sami-pdf2md-tool/releases/download/v0.4.2/sami_pdf2md_tool-0.4.2-py3-none-any.whl",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
   },
   "ui": {
-    "version": "0.3.2",
+    "version": "0.4.2",
     "protocol_version": 1,
-    "release_tag": "v0.3.2",
+    "release_tag": "v0.4.2",
     "windows_x64": {
-      "asset": "SAMI-0.3.2-win-x64-setup.exe",
-      "url": "https://github.com/dramirezbe/sami-pdf2md-tool/releases/download/v0.3.2/SAMI-0.3.2-win-x64-setup.exe"
+      "asset": "SAMI-0.4.2-win-x64-setup.exe",
+      "url": "https://github.com/dramirezbe/sami-pdf2md-tool/releases/download/v0.4.2/SAMI-0.4.2-win-x64-setup.exe"
     },
     "linux_x64": {
-      "asset": "SAMI-0.3.2-linux-x64.AppImage",
-      "url": "https://github.com/dramirezbe/sami-pdf2md-tool/releases/download/v0.3.2/SAMI-0.3.2-linux-x64.AppImage",
-      "deb_asset": "SAMI-0.3.2-linux-x64.deb",
-      "deb_url": "https://github.com/dramirezbe/sami-pdf2md-tool/releases/download/v0.3.2/SAMI-0.3.2-linux-x64.deb"
+      "asset": "SAMI-0.4.2-linux-x64.AppImage",
+      "url": "https://github.com/dramirezbe/sami-pdf2md-tool/releases/download/v0.4.2/SAMI-0.4.2-linux-x64.AppImage",
+      "deb_asset": "SAMI-0.4.2-linux-x64.deb",
+      "deb_url": "https://github.com/dramirezbe/sami-pdf2md-tool/releases/download/v0.4.2/SAMI-0.4.2-linux-x64.deb"
     }
   }
 }

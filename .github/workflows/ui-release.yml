@@ -23,14 +23,17 @@ jobs:
           fetch-depth: 0
       - id: v
         run: |
+          VERSION=$(python3 scripts/sync_version.py)
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+            python3 scripts/sync_version.py --tag "$GITHUB_REF_NAME"
+            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
             echo "is_release=true" >> "$GITHUB_OUTPUT"
           else
-            RAW=$(git describe --tags --match 'v*' 2>/dev/null || echo v0.0.0-dev)
-            echo "version=${RAW#v}" >> "$GITHUB_OUTPUT"
+            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
             echo "is_release=false" >> "$GITHUB_OUTPUT"
           fi
+          python3 scripts/sync_version.py --sync
+          git diff --exit-code -- ui/package.json ui/package-lock.json packaging/runtime-manifest.json packaging/linux/cli-install.sh packaging/windows/cli-install.ps1
 
   package:
     needs: resolve-version

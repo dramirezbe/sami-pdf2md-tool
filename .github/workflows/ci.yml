@@ -15,6 +15,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Verify version metadata
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            python3 scripts/sync_version.py --tag "$GITHUB_REF_NAME"
+          fi
+          python3 scripts/sync_version.py --sync
+          git diff --exit-code -- ui/package.json ui/package-lock.json packaging/runtime-manifest.json packaging/linux/cli-install.sh packaging/windows/cli-install.ps1
+
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
