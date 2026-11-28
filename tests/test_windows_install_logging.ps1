@@ -15,6 +15,8 @@ try {
         throw 'The installer log did not capture the failure.'
     }
     Write-Host 'Windows installer failure is reported and logged.'
+    # The native helper failed as expected; do not leak its exit code into CI.
+    $global:LASTEXITCODE = 0
 } finally {
     $env:LOCALAPPDATA = $oldLocalAppData
     Remove-Item -LiteralPath $tempDir -Recurse -Force -ErrorAction SilentlyContinue
