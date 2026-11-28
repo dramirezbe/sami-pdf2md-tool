@@ -99,7 +99,8 @@ class FileProgress:
                 self._ocr_pages = int(match[1])
                 self._ocr_completed, self._ocr_total = 0, max(self._ocr_pages, 1)
                 expected = self._rates["model"] * max(self._ocr_pages, 1)
-                share = expected / (expected + self._finish_seconds())
+                # Reserve room for equations, tables, and rendering after OCR.
+                share = min(expected / (expected + self._finish_seconds()), 0.8)
                 self._enter("model", self._end, share, expected)
             elif (match := _OCR_DONE.match(name)) and self._segment == "model":
                 self._ocr_completed = min(int(match[1]), self._ocr_pages)

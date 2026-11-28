@@ -92,3 +92,8 @@ def test_review_appendix_survives_unavailable_markdown_renderer(monkeypatch):
     assert "source 2" in result and "OCR 2" in result
     assert "Unverified OCR alternative" in result
     assert review_appendix([]) == ""
+
+
+def test_algorithm_source_html_keeps_lines_and_escapes_markup():
+    from sami.scientific_fidelity import algorithm_source_html
+    assert algorithm_source_html("1: a < b\n2: c & d") == "<pre>1: a &lt; b\n2: c &amp; d</pre>"

@@ -72,6 +72,16 @@ class FileProgressTests(unittest.TestCase):
         self.assertLess(progress.percent, 95)
         self.assertGreater(progress.percent, 60)
 
+    def test_table_processing_keeps_room_after_a_long_ocr(self):
+        progress = self.make(pages=13, device="cuda")
+        progress.stage("OCR (3/13 pages need it)...")
+        self.clock.now += 100_000
+        progress.stage("OCR progress (3/3 pages completed; page 11)")
+        progress.stage("Structure building...")
+        progress.stage("[14/24] TableProcessor...")
+        progress.model({"phase": "model_writing", "unit": "block", "completed": 0, "total": 1})
+        self.assertLess(progress.percent, 96)
+
     def test_slow_processor_does_not_claim_the_remaining_processors_are_done(self):
         progress = self.make()
         progress.stage("OCR (skipped, no pages need it)...")

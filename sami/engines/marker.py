@@ -148,7 +148,7 @@ def _make_verbose_converter_cls(stage_logger, stage_done_logger):
                     if not is_algorithm(source):
                         continue
                     lines = block.contained_blocks(document, (BlockTypes.Line,))
-                    algorithms.append((page, block, source, block.structure[:],
+                    algorithms.append((page, block, source,
                                        [(line, line.removed) for line in lines], block.text_extraction_method))
                     block.text_extraction_method = "surya"
 
@@ -205,12 +205,12 @@ def _make_verbose_converter_cls(stage_logger, stage_done_logger):
                              block_page_numbers=[p.page_id + 1 for p in block_pages]):
                 ocr_builder(document, provider)
             stage_done_logger(time.monotonic() - t0)
-            from sami.scientific_fidelity import algorithm_candidate_safe
-            for page, block, source, structure, lines, method in algorithms:
+            from sami.scientific_fidelity import algorithm_candidate_safe, algorithm_source_html
+            for page, block, source, lines, method in algorithms:
                 candidate = block.html
                 safe = bool(candidate and not ocr_uncertain and algorithm_candidate_safe(source, candidate))
                 if not safe:
-                    block.html, block.structure, block.text_extraction_method = None, structure, method
+                    block.html, block.structure, block.text_extraction_method = algorithm_source_html(source), [], method
                     for line, removed in lines:
                         line.removed = removed
                 # Mathematical OCR may alter a symbol even when text checks pass.

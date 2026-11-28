@@ -191,6 +191,11 @@ def is_algorithm(text):
             and ("←" in text or re.search(r"\b(?:while|for|return|then)\b", text, re.IGNORECASE)))
 
 
+def algorithm_source_html(source):
+    """Keep source line breaks without interpreting document text as HTML."""
+    return "<pre>" + escape(source) + "</pre>"
+
+
 def algorithm_candidate_safe(source, candidate):
     """Reject incomplete OCR and changed named identifiers; not a proof of correctness."""
     from bs4 import BeautifulSoup
