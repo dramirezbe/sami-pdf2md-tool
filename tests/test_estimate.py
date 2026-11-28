@@ -55,7 +55,22 @@ class FileProgressTests(unittest.TestCase):
             self.clock.now += 100
             samples.append(progress.percent)
         self.assertGreater(samples[0], samples[1] - samples[0])
-        self.assertGreater(samples[1] - samples[0], samples[2] - samples[1])
+        self.assertGreaterEqual(samples[1] - samples[0], samples[2] - samples[1])
+        self.assertLess(samples[-1], 60)
+
+    def test_unfinished_ocr_pages_cannot_reach_nearly_complete(self):
+        progress = self.make(device="cuda")
+        progress.stage("OCR (2/2 pages need it)...")
+        progress.model({"phase": "model_writing", "unit": "page", "completed": 0, "total": 2, "tokens": 100000})
+        self.clock.now += 100_000
+        self.assertLess(progress.percent, 60)
+        # A single-request batch is not the same as a whole-document page count.
+        progress.model({"phase": "model_done", "unit": "page", "completed": 1, "total": 1, "tokens": 200000})
+        self.assertLess(progress.percent, 60)
+        self.assertEqual((self.seen[-1]["completed"], self.seen[-1]["total"]), (0, 2))
+        progress.stage("OCR progress (1/2 pages completed; page 4)")
+        self.assertLess(progress.percent, 95)
+        self.assertGreater(progress.percent, 60)
 
     def test_ticks_publish_only_changes(self):
         progress = self.make()

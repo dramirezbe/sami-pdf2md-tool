@@ -24,8 +24,8 @@ DEFAULT_RATES = {
     "cpu": {"prepare": 8.0, "model": 140.0},
     "gpu": {"prepare": 2.0, "model": 15.0},
 }
-_TOKENS_PER_PAGE = 2000
 _OCR = re.compile(r"^OCR \((\d+)/\d+ pages")
+_OCR_DONE = re.compile(r"^OCR progress \((\d+)/(\d+) pages completed")
 _STEP = re.compile(r"^\[(\d+)/(\d+)\]")
 
 
@@ -65,6 +65,8 @@ class FileProgress:
         self._durations: dict[str, float] = {}
         self._ocr_pages = 0
         self._real = 0.0
+        self._ocr_completed = None
+        self._ocr_total = None
         self._segment = "prepare"
         self._since = clock()
         self._start = 0.0
@@ -76,6 +78,11 @@ class FileProgress:
         with self._lock:
             elapsed = self._clock() - self._since
             fraction = max(_ease(elapsed / self._expected), self._real)
+            if self._segment == "model" and self._ocr_total:
+                # A clock or generated tokens cannot prove a page is finished.
+                # Reserve 20% of the current page until its result arrives.
+                limit = (self._ocr_completed + 0.8) / self._ocr_total
+                fraction = min(fraction, min(limit, 0.95))
             target = self._start + (self._end - self._start) * fraction
             self._shown = min(max(self._shown, target), CEILING)
             return int(self._shown)
@@ -84,9 +91,13 @@ class FileProgress:
         with self._lock:
             if (match := _OCR.match(name)) and self._segment == "prepare":
                 self._ocr_pages = int(match[1])
+                self._ocr_completed, self._ocr_total = 0, max(self._ocr_pages, 1)
                 expected = self._rates["model"] * max(self._ocr_pages, 1)
                 share = expected / (expected + self._finish_seconds())
                 self._enter("model", self._end, share, expected)
+            elif (match := _OCR_DONE.match(name)) and self._segment == "model":
+                self._ocr_completed = min(int(match[1]), self._ocr_pages)
+                self._real = max(self._real, 0.95 * self._ocr_completed / self._ocr_total)
             elif (
                 name.startswith(("OCR (skipped", "Structure building"))
                 and self._segment != "finish"
@@ -99,10 +110,9 @@ class FileProgress:
 
     def model(self, data: dict) -> None:
         with self._lock:
-            if self._segment == "model" and data.get("total"):
-                done = 0.95 * data["completed"] / data["total"]
-                written = data.get("tokens", 0) / (_TOKENS_PER_PAGE * max(self._ocr_pages, 1))
-                self._real = max(self._real, done, 0.9 * min(written, 1.0))
+            if self._segment == "model" and self._ocr_total:
+                data = {**data, "completed": self._ocr_completed,
+                        "total": self._ocr_total, "unit": "page"}
             self._emit(data, force=True)
 
     def pages_done(self, completed: int, total: int) -> None:
