@@ -48,6 +48,14 @@ class ModelProgressTests(unittest.TestCase):
         self.progress.end()
         self.assertEqual((self.seen[-1]["phase"], self.seen[-1]["completed"]), ("model_done", 2))
 
+    def test_reports_context_truncation_even_without_token_timings(self):
+        self.progress.begin(1, "page")
+        self.append("0.2 I slot release: id 7 | task 2 | stop processing: n_tokens = 9, truncated = 1\n")
+        self.progress.tick()
+        self.assertEqual(self.seen[-1]["context_truncations"], 1)
+        self.progress.tick()
+        self.assertEqual(self.seen[-1]["context_truncations"], 1)
+
     def test_partial_lines_wait_for_the_rest(self):
         self.progress.begin(1, "page")
         line = generated(1, 100, 16.0)
@@ -126,3 +134,19 @@ class MonitorHookTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_context_truncation_is_warned_once_per_observation():
+    from sami.cli import _model_progress_reporter
+    snapshots, warnings = [], []
+    tracker = types.SimpleNamespace(model=snapshots.append, percent=20)
+    snapshot = {"phase": "model_writing", "completed": 0, "total": 1,
+                "unit": "page", "tokens": 0, "tokens_per_second": 0,
+                "context_truncations": 1}
+    with mock.patch("sami.cli._JSON_MODE", True):
+        report = _model_progress_reporter("paper.pdf", tracker, warnings.append)
+        report(snapshot)
+        report(snapshot)
+        report({**snapshot, "context_truncations": 2})
+    assert [warning["code"] for warning in warnings] == ["MODEL_CONTEXT_TRUNCATED"] * 2
+    assert [warning["count"] for warning in warnings] == [1, 1]

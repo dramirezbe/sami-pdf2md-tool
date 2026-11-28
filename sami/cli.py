@@ -148,15 +148,22 @@ def _marker_stage_done(elapsed: float) -> None:
     log_stage_done(elapsed)
 
 
-def _model_progress_reporter(name: str, tracker):
+def _model_progress_reporter(name: str, tracker, on_warning=None):
     """Show model progress on the terminal and publish changes as events."""
     started = time.monotonic()
     live = sys.stdout.isatty()
     shown = published = None
     open_line = False
+    truncations = 0
 
     def report(snapshot: dict) -> None:
-        nonlocal started, shown, published, open_line
+        nonlocal started, shown, published, open_line, truncations
+        seen = snapshot.get("context_truncations", 0)
+        if seen > truncations and on_warning is not None:
+            on_warning({"code": "MODEL_CONTEXT_TRUNCATED",
+                        "message": "The vision model truncated its context. Review the affected content.",
+                        "count": seen - truncations})
+        truncations = seen
         phase, completed, total = snapshot["phase"], snapshot["completed"], snapshot["total"]
         label = PHASE_LABELS[phase]
         if snapshot != published:
@@ -667,8 +674,13 @@ def _convert_batch(args, jobs, results, control, engines, claims, emit):
                 )
                 monitor = contextlib.nullcontext()
                 if selection.engine == "marker":
+                    def model_warning(warning):
+                        warnings.append(warning)
+                        emit("warning", warning, job_id=job_id, attempt=attempt)
+                        log(f"  [{pdf.name}] WARNING: {warning['message']}")
+
                     monitor = monitor_model(
-                        _model_progress_reporter(pdf.name, tracker), cancel_event=control.cancelled,
+                        _model_progress_reporter(pdf.name, tracker, model_warning), cancel_event=control.cancelled,
                     )
                 with ticking(tracker), monitor, contextlib.redirect_stdout(
                     sys.stderr if args.json else sys.stdout

@@ -44,6 +44,7 @@ class ModelProgress:
         self._total = 0
         self._unit = "page"
         self._tasks: dict[str, tuple[int, float, bool]] = {}
+        self._truncated = 0
 
     def loading(self, active: bool) -> None:
         with self._lock:
@@ -94,6 +95,7 @@ class ModelProgress:
                 "unit": self._unit,
                 "tokens": tokens,
                 "tokens_per_second": round(sum(running), 1),
+                "context_truncations": self._truncated,
             }
             # Reporting must never break a conversion.
             with contextlib.suppress(Exception):
@@ -123,9 +125,12 @@ class ModelProgress:
             line = raw.decode("utf-8", errors="replace")
             if match := _GENERATED.search(line):
                 self._tasks[match[1]] = (int(match[2]), float(match[3]), True)
-            elif (match := _RELEASED.search(line)) and match[1] in self._tasks:
-                tokens, rate, _alive = self._tasks[match[1]]
-                self._tasks[match[1]] = (tokens, rate, False)
+            elif match := _RELEASED.search(line):
+                if self._active and re.search(r"\btruncated\s*=\s*1\b", line):
+                    self._truncated += 1
+                if match[1] in self._tasks:
+                    tokens, rate, _alive = self._tasks[match[1]]
+                    self._tasks[match[1]] = (tokens, rate, False)
 
 
 def _unit_for(batch) -> str:
