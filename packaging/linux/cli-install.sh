@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-CLI_VERSION=0.4.2
-CLI_WHEEL=sami_pdf2md_tool-0.4.2-py3-none-any.whl
+CLI_VERSION=0.4.3
+CLI_WHEEL=sami_pdf2md_tool-0.4.3-py3-none-any.whl
 CLI_SHA256=0000000000000000000000000000000000000000000000000000000000000000
-UI_VERSION=0.4.2
+UI_VERSION=0.4.3
 REPOSITORY=dramirezbe/sami-pdf2md-tool
 APP_ID=com.dramirezbe.sami.desktop
 ICON_NAME=com.dramirezbe.sami

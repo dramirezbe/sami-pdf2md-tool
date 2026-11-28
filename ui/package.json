@@ -2,7 +2,7 @@
   "name": "sami-desktop",
   "productName": "SAMI",
   "desktopName": "com.dramirezbe.sami.desktop",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "Smart Automated Markdown Interpreter",
   "author": {
     "name": "SAMI contributors",
