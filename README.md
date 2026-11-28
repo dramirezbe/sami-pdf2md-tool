@@ -4,7 +4,8 @@ Convert PDF files to Markdown with extracted figures. Local, keyless, no API nee
 
 **[Website](https://dramirezbe.github.io/sami-pdf2md-tool/)** · **[Getting Started](https://dramirezbe.github.io/sami-pdf2md-tool/getting-started.html)** · **[Releases](https://github.com/dramirezbe/sami-pdf2md-tool/releases)**
 
-For each PDF, sami creates a folder containing:
+For each PDF, SAMI creates a folder containing:
+
 - `<name>.md` — text with LaTeX equations and Markdown tables
 - Figure images referenced by the Markdown
 
@@ -12,7 +13,9 @@ Powered by [Marker](https://github.com/VikParuchuri/marker).
 
 ## Desktop app
 
-SAMI Desktop lets you add several PDFs or folders, review the list, and start a conversion with **Convert**. It shows the active document, elapsed time, and batch progress. When a result is available, you can preview its PDF and Markdown, open the output folder, or export the document with its figures. The desktop version is always visible next to the SAMI name and also appears in Settings. Settings offer English and Spanish and light and dark appearance.
+SAMI Desktop lets you add several PDFs or folders, review the list, and start a conversion with **Convert**. It shows the active document, elapsed time, batch progress, and an estimated percentage for the current file. When available, live model details include the current phase, completed pages or blocks, tokens, and processing speed. The fast mode reports completed pages.
+
+The file percentage is an estimate, not a precise measurement. It uses timings from earlier conversions on the same machine, never moves backwards, and stays below 100% until the file is published. When a result is available, you can preview its PDF and Markdown, open the output folder, or export the document with its figures. The desktop version is visible next to the SAMI name and in Settings, where you can also choose English or Spanish and light or dark appearance.
 
 The desktop distribution targets native Windows with a per-user installer and Linux with an AppImage and `.deb` package. Setup prepares or reuses the matching CLI automatically.
 
@@ -56,7 +59,7 @@ sami paper.pdf --mode balanced
 
 For CLI-only installation, run the downloaded `install.ps1` with `-Component cli`. On x64 with an NVIDIA driver that supports CUDA 13.2 or later, the installer downloads the PyTorch CUDA wheel directly from PyTorch and verifies its SHA-256. To install a local wheel, run `install.ps1` with `-Source` followed by the wheel path.
 
-### Upgrade an installed CLI
+### Upgrade SAMI
 
 ```shell
 sami upgrade
@@ -112,7 +115,7 @@ sami a.pdf b.pdf                   # batch convert
 sami convert a.pdf reports/ --recursive -o out/
 sami paper.pdf --mode fast         # faster, lower quality
 sami paper.pdf --device cpu        # keep the selected mode on CPU
-sami paper.pdf --no-strip-refs     # keep the references section
+sami paper.pdf --no-strip-refs     # compatibility option; references are preserved
 sami paper.pdf --flat              # no subfolder, output beside the PDF
 sami paper.pdf -q                  # quiet mode
 ```
@@ -120,6 +123,8 @@ sami paper.pdf -q                  # quiet mode
 Folder inputs include their direct PDFs by default. Use `--recursive` to include subfolders. The batch deduplicates inputs and reports invalid selections while continuing with the valid PDFs.
 
 Repeated conversions get numbered names such as `paper_2.md`. With `--flat`, a document's figures are published under its own `<name>_assets/` directory.
+
+The CLI reports conversion stages and live model progress when available. For integrations, `job_progress` events carry the estimated file percentage and can include page or block counts and model activity. If model progress details are unavailable, conversion continues without them.
 
 ## Conversion Modes
 
@@ -175,10 +180,17 @@ sami creates `~/.sami/` on first run:
   compatibility.json          # results from the latest setup validation
   cache/huggingface/          # downloaded models (surya-ocr, etc.)
   cache/torch/                # torch hub cache
+  cache/progress.json         # local timing estimates for file progress
   logs/
 ```
 
 Override with `SAMI_HOME` environment variable.
+
+## Development and releases
+
+The CLI and desktop app share a release version. To prepare a release, update the root `VERSION` file and run `python3 scripts/sync_version.py --sync` (on Windows, `python scripts/sync_version.py --sync`). Review and commit the synchronized metadata along with `VERSION`.
+
+After validating and merging the candidate into `main`, run `python3 scripts/tag_release.py` on the release commit. It checks that the working tree is clean and the metadata is synchronized before creating an annotated tag. The Git tag starts the release workflow, which checks that it matches `VERSION`, builds the artifacts, and creates a draft release. See [the release guide](docs/releasing.md) for validation and publishing details.
 
 ## Uninstall
 
