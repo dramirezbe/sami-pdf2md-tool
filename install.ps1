@@ -80,13 +80,12 @@ try {
     Write-Host 'Fetching the installation steps from the latest release...'
     Invoke-WebRequest -UseBasicParsing -Uri $helperUrl -OutFile $helper -TimeoutSec 60
     # The desktop app must match the CLI version exactly, so both come from the helper.
-    $stamped = Select-String -LiteralPath $helper -Pattern "^\$cliVersion = '([^']+)'" | Select-Object -First 1
+    $stamped = Select-String -LiteralPath $helper -Pattern '^\$cliVersion = ''([^'']+)''' | Select-Object -First 1
     if (-not $stamped) { throw 'The latest release installer does not declare a SAMI version.' }
     $uiVersion = $stamped.Matches[0].Groups[1].Value
 
     if ($Component -in @('cli', 'all')) {
         & $helper -Prepare
-        if ($LASTEXITCODE -ne 0) { throw "SAMI CLI installation failed (exit $LASTEXITCODE)." }
     }
 
     if ($Component -in @('ui', 'all')) {
@@ -100,7 +99,6 @@ try {
         }
         if ($Component -eq 'ui') {
             & $helper -CheckOnly
-            if ($LASTEXITCODE -ne 0) { throw 'UI-only installation requires a healthy, matching SAMI CLI.' }
         }
         $asset = "SAMI-$uiVersion-win-x64-setup.exe"
         $releaseUrl = "https://github.com/$repository/releases/download/v$uiVersion"

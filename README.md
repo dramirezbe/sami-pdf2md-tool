@@ -59,6 +59,8 @@ sami paper.pdf --mode balanced
 
 For CLI-only installation, run the downloaded `install.ps1` with `-Component cli`. On x64 with an NVIDIA driver that supports CUDA 13.2 or later, the installer downloads the PyTorch CUDA wheel directly from PyTorch and verifies its SHA-256. To install a local wheel, run `install.ps1` with `-Source` followed by the wheel path.
 
+The graphical installer shows installation details and writes a log to `%LOCALAPPDATA%\SAMI\installer.log`. If installation fails, share the relevant error from that log when requesting support. Each installer run replaces the previous log.
+
 ### Upgrade SAMI
 
 ```shell

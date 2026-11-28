@@ -16,6 +16,8 @@ files:
   - "!dist/**/*.map"
 
 extraResources:
+  - from: ../packaging/windows/install-logged.ps1
+    to: install-logged.ps1
   - from: ../packaging/windows/cli-install.ps1
     to: cli-install.ps1
   - from: ../packaging/linux/cli-install.sh

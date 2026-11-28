@@ -35,8 +35,30 @@ jobs:
           python3 scripts/sync_version.py --sync
           git diff --exit-code -- ui/package.json ui/package-lock.json packaging/runtime-manifest.json packaging/linux/cli-install.sh packaging/windows/cli-install.ps1
 
-  package:
+  build-wheel:
     needs: resolve-version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build the wheel shared by all platforms
+        env:
+          RELEASE_VERSION: ${{ needs.resolve-version.outputs.version }}
+        run: |
+          python -m pip install build "setuptools-scm>=8"
+          SETUPTOOLS_SCM_PRETEND_VERSION="$RELEASE_VERSION" python -m build --wheel
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-wheel
+          path: dist/sami_pdf2md_tool-*.whl
+          if-no-files-found: error
+
+  package:
+    needs: [resolve-version, build-wheel]
     strategy:
       fail-fast: false
       matrix:
@@ -68,6 +90,11 @@ jobs:
         with:
           python-version: '3.12'
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-wheel
+          path: dist
+
       - name: Stamp version from tag
         shell: bash
         run: |
@@ -77,10 +104,8 @@ jobs:
           # 1. Sync UI package.json
           npm version "$V" --no-git-tag-version --allow-same-version
 
-          # 2. Build Python wheel (setuptools-scm reads tag)
+          # 2. Use the same wheel for Windows, Linux, and the release.
           cd ..
-          pip install build "setuptools-scm>=8"
-          SETUPTOOLS_SCM_PRETEND_VERSION="$V" python -m build --wheel
           WHEEL="sami_pdf2md_tool-${V}-py3-none-any.whl"
           if command -v sha256sum >/dev/null; then
             SHA=$(sha256sum "dist/$WHEEL" | cut -d' ' -f1)
@@ -171,6 +196,20 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         run: npm run ${{ matrix.package_script }}
 
+      - name: Verify Windows installer wheel and failure log
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $wheel = (Resolve-Path "../dist/sami_pdf2md_tool-$env:RELEASE_VERSION-py3-none-any.whl").Path
+          $sha = (Get-FileHash -Algorithm SHA256 -LiteralPath $wheel).Hash.ToLowerInvariant()
+          $helper = Get-Content -Raw 'release/win-unpacked/resources/cli-install.ps1'
+          $manifest = Get-Content -Raw 'release/win-unpacked/resources/runtime-manifest.json' | ConvertFrom-Json
+          if (-not $helper.Contains("`$wheelSha256 = '$sha'") -or $manifest.cli.sha256 -ne $sha) {
+            throw 'Windows installer does not reference the published wheel checksum.'
+          }
+          & ../tests/test_windows_install_logging.ps1
+          & ../tests/test_windows_release_helper.ps1
+
       - name: Smoke test AppImage
         if: runner.os == 'Linux'
         shell: bash
@@ -197,14 +236,6 @@ jobs:
             ui/release/SAMI-*-linux-x64.deb
           if-no-files-found: error
           retention-days: 14
-
-      - name: Upload wheel artifact
-        if: matrix.target == 'linux'
-        uses: actions/upload-artifact@v4
-        with:
-          name: python-wheel
-          path: ${{ env.WHEEL_PATH }}
-          if-no-files-found: error
 
       - name: Upload stamped packaging files
         if: matrix.target == 'linux'
