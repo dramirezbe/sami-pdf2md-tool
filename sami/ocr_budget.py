@@ -135,7 +135,7 @@ def _partial_page_html(raw, parse):
 
 
 @contextlib.contextmanager
-def bounded_ocr(page_numbers, report, *, seconds=None):
+def bounded_ocr(page_numbers, report, *, seconds=None, block_page_numbers=()):
     """Apply an end-to-end budget separately to each page in Marker's OCR."""
     from surya.inference.backends import openai_client
     import surya.recognition as recognition
@@ -147,7 +147,9 @@ def bounded_ocr(page_numbers, report, *, seconds=None):
     original_repeat = recognition._detect_repeat_loop
     active = [None]
     full_page_numbers = list(page_numbers)
+    block_numbers = list(block_page_numbers)
     first_full_page_call = [True]
+    first_block_page_call = [True]
 
     def generate(item, client, model_name, max_tokens_default, temperature, top_p,
                  timeout, request_logprobs_default):
@@ -185,12 +187,16 @@ def bounded_ocr(page_numbers, report, *, seconds=None):
     def call(self, images, layout_results=None, *, full_page=None):
         if active[0] is not None or not images:
             return original_call(self, images, layout_results, full_page=full_page)
-        numbered = bool(full_page and first_full_page_call[0])
-        if numbered:
+        numbered_full = bool(full_page and first_full_page_call[0])
+        numbered_blocks = bool(full_page is False and first_block_page_call[0])
+        if numbered_full:
             first_full_page_call[0] = False
+        if numbered_blocks:
+            first_block_page_call[0] = False
+        numbers = full_page_numbers if numbered_full else block_numbers if numbered_blocks else []
         outputs = []
         for index, image in enumerate(images):
-            page = full_page_numbers[index] if numbered and index < len(full_page_numbers) else None
+            page = numbers[index] if index < len(numbers) else None
             budget = PageBudget(page=page, seconds=limit)
             active[0] = budget
             try:

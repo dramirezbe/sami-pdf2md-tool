@@ -125,3 +125,10 @@ def test_page_budgets_are_separate_and_hooks_are_restored(monkeypatch):
     assert output[1] == "<div>ok</div>"
     assert [report.timed_out for report in reports] == [True, False]
     assert Predictor.__call__ is original
+    calls.clear()
+    reports.clear()
+    with bounded_ocr([], lambda budget, elapsed: reports.append(budget), seconds=2,
+                     block_page_numbers=[4, 9]):
+        Predictor()(["first", "second"], ["a", "b"], full_page=False)
+    assert calls == [4, 9]
+    assert [report.page for report in reports] == [4, 9]
